@@ -1,28 +1,29 @@
-﻿#include "scan.h"
+﻿#include "id-list.h"
 
-struct ID {
-  char *name;
+#include "scan.h"
+struct ID
+{
+  char * name;
   int count;
-  struct ID *nextp;
-} *idroot;
+  struct ID * nextp;
+} * idroot;
 
-void init_idtab() { /* Initialise the table */
-  idroot = NULL;
-}
+void init_idtab() { /* Initialise the table */ idroot = NULL; }
 
-struct ID *search_idtab(char *np) { /* search the name pointed by np */
-  struct ID *p;
+struct ID * search_idtab(char * np)
+{ /* search the name pointed by np */
+  struct ID * p;
 
   for (p = idroot; p != NULL; p = p->nextp) {
-    if (!strcmp(np, p->name))
-      return (p);
+    if (!strcmp(np, p->name)) return (p);
   }
   return (NULL);
 }
 
-void id_countup(char *np) { /* Register and count up the name pointed by np */
-  struct ID *p;
-  char *cp;
+void id_countup(char * np)
+{ /* Register and count up the name pointed by np */
+  struct ID * p;
+  char * cp;
 
   if ((p = search_idtab(np)) != NULL)
     p->count++;
@@ -43,16 +44,17 @@ void id_countup(char *np) { /* Register and count up the name pointed by np */
   }
 }
 
-void print_idtab() { /* Output the registered data */
-  struct ID *p;
+void print_idtab()
+{ /* Output the registered data */
+  struct ID * p;
 
   for (p = idroot; p != NULL; p = p->nextp) {
-    if (p->count != 0)
-      printf("\t\"Identifier\" \"%s\"\t%d\n", p->name, p->count);
+    if (p->count != 0) printf("\t\"Identifier\" \"%s\"\t%d\n", p->name, p->count);
   }
 }
 
-void release_idtab() { /* Release tha data structure */
+void release_idtab()
+{ /* Release tha data structure */
   struct ID *p, *q = NULL;
 
   for (p = idroot; p != NULL; p = q) {
