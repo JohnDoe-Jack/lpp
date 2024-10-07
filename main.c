@@ -38,11 +38,15 @@ int main(int nc, char * np[])
     end_scan();
     return 0;
   }
-  /* 作成する部分：トークンカウント用の配列？を初期化する */
   init_idtab();
+  /* 作成する部分：トークンカウント用の配列？を初期化する */
+  for (i = 0; i <= NUMOFTOKEN; i++) {
+    numtoken[i] = 0;
+  }
 
   while ((token = scan()) >= 0) {
     /* 作成する部分：トークンをカウントする */
+    numtoken[token]++;
   }
   end_scan();
   /* 作成する部分:カウントした結果を出力する */

@@ -2,12 +2,12 @@
 #define SCAN_H
 
 /* scan.h  */
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define MAXSTRSIZE 1024
-
 /* Token */
 #define TNAME 1       /* Name : Alphabet { Alphabet | Digit } */
 #define TPROGRAM 2    /* program : Keyword */
@@ -58,6 +58,75 @@
 #define TREAD 47      /* read : Keyword */
 #define TWRITE 48     /* write : Keyword */
 #define TBREAK 49     /* break : Keyword */
+/**
+ * @brief トークンの種類
+ * @enum TokenKind
+ */
+typedef enum {
+  TK_NAME = 1,
+  TK_PROGRAM,
+  TK_VAR,
+  TK_ARRAY,
+  TK_OF,
+  TK_BEGIN,
+  TK_END,
+  TK_IF,
+  TK_THEN,
+  TK_ELSE,
+  TK_PROCEDURE,
+  TK_RETURN,
+  TK_CALL,
+  TK_WHILE,
+  TK_DO,
+  TK_NOT,
+  TK_OR,
+  TK_DIV,
+  TK_AND,
+  TK_CHAR,
+  TK_INTEGER,
+  TK_BOOLEAN,
+  TK_READLN,
+  TK_WRITELN,
+  TK_TRUE,
+  TK_FALSE,
+  TK_NUMBER,
+  TK_STRING,
+  TK_PLUS,
+  TK_MINUS,
+  TK_STAR,
+  TK_EQUAL,
+  TK_NOTEQ,
+  TK_LE,
+  TK_LEEQ,
+  TK_GR,
+  TK_GREQ,
+  TK_LPAREN,
+  TK_RPAREN,
+  TK_LSQPAREN,
+  TK_RSQPAREN,
+  TK_ASSIGN,
+  TK_DOT,
+  TK_COMMA,
+  TK_COLON,
+  TK_SEMI,
+  TK_READ,
+  TK_WRITE,
+  TK_BREAK
+} TokenKind;
+
+typedef struct Token Token;
+
+/**
+ * @brief トークン型
+ * @struct Token
+ */
+struct Token
+{
+  TokenKind kind;
+  Token * next;
+  int val;
+  char * str;
+};
 
 #define NUMOFTOKEN 49
 
@@ -71,15 +140,19 @@ extern struct KEY
   int keytoken;
 } key[KEYWORDSIZE];
 
-extern int error(char * mes);
+int error(char * mes);
 
-extern int init_scan(char * filename);
-extern int scan(void);
-extern int get_linenum(void);
-extern void end_scan(void);
+int init_scan(const char * path);
+int scan(void);
+int get_linenum(void);
+void end_scan(void);
+
+char * read_file(FILE * fp);
 
 extern int num_attr;
 extern char string_attr[MAXSTRSIZE];
 extern FILE * fp;
+extern int buf;
+extern int cbuf;
 
 #endif
