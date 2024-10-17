@@ -16,7 +16,7 @@ endif()
 add_compile_options(-Wall -Wextra -Werror)
 
 # 実行ファイルを生成するためのソースファイルを指定
-add_executable(lpp main.c scan.c id-list.c scan.h id-list.h)
+add_executable(tc main.c scan.c id-list.c scan.h id-list.h)
 
 # インクルードディレクトリを指定
-target_include_directories(lpp PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(tc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

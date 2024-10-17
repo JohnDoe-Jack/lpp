@@ -26,10 +26,70 @@ int init_scan(const char * path)
   return 0;
 }
 
-void check_keyword()
+/**
+ * @brief keyword listに含まれていかをチェックする
+ *
+ */
+int check_keyword()
 {
-  if (strncmp(string_attr, "program", strlen(string_attr))) {
-  } else if (strncmp(string_attr, "array", strlen(string_attr))) {
+  if (strcmp(string_attr, "program") == 0) {
+    return TPROGRAM;
+  } else if (strcmp(string_attr, "var") == 0) {
+    return TVAR;
+  } else if (strcmp(string_attr, "array") == 0) {
+    return TARRAY;
+  } else if (strcmp(string_attr, "of") == 0) {
+    return TOF;
+  } else if (strcmp(string_attr, "begin") == 0) {
+    return TBEGIN;
+  } else if (strcmp(string_attr, "end") == 0) {
+    return TEND;
+  } else if (strcmp(string_attr, "if") == 0) {
+    return TIF;
+  } else if (strcmp(string_attr, "then") == 0) {
+    return TTHEN;
+  } else if (strcmp(string_attr, "else") == 0) {
+    return TELSE;
+  } else if (strcmp(string_attr, "procedure") == 0) {
+    return TPROCEDURE;
+  } else if (strcmp(string_attr, "return") == 0) {
+    return TRETURN;
+  } else if (strcmp(string_attr, "call") == 0) {
+    return TCALL;
+  } else if (strcmp(string_attr, "while") == 0) {
+    return TWHILE;
+  } else if (strcmp(string_attr, "do") == 0) {
+    return TDO;
+  } else if (strcmp(string_attr, "not") == 0) {
+    return TNOT;
+  } else if (strcmp(string_attr, "or") == 0) {
+    return TOR;
+  } else if (strcmp(string_attr, "div") == 0) {
+    return TDIV;
+  } else if (strcmp(string_attr, "and") == 0) {
+    return TAND;
+  } else if (strcmp(string_attr, "char") == 0) {
+    return TCHAR;
+  } else if (strcmp(string_attr, "integer") == 0) {
+    return TINTEGER;
+  } else if (strcmp(string_attr, "boolean") == 0) {
+    return TBOOLEAN;
+  } else if (strcmp(string_attr, "readln") == 0) {
+    return TREADLN;
+  } else if (strcmp(string_attr, "writeln") == 0) {
+    return TWRITELN;
+  } else if (strcmp(string_attr, "true") == 0) {
+    return TTRUE;
+  } else if (strcmp(string_attr, "false") == 0) {
+    return TFALSE;
+  } else if (strcmp(string_attr, "read") == 0) {
+    return TREAD;
+  } else if (strcmp(string_attr, "write") == 0) {
+    return TWRITE;
+  } else if (strcmp(string_attr, "break") == 0) {
+    return TBREAK;
+  } else {
+    return TNAME;
   }
 }
 
@@ -71,18 +131,19 @@ int scan()
       case ' ':
       case '\t':
         cbuf = fgetc(fp);
-        break;
+        continue;
+        ;
       // 改行文字 (\n または \r)
       case '\n':
       case '\r':
         check_newline();  // 行番号の更新
         cbuf = fgetc(fp);
-        break;
+        continue;
       // {}による注釈を読み飛ばす
       case '{':
         while ((cbuf = fgetc(fp)) != '}')
           if (cbuf == EOF) return -1;
-        break;
+        continue;
       // /* */による注釈を読み飛ばす
       case '/':
         if ((cbuf = fgetc(fp)) == '*') {
@@ -93,7 +154,7 @@ int scan()
             if ((cbuf = fgetc(fp)) == '/') break;
           }
         }
-        break;
+        continue;
     }
 
     if (isalpha(cbuf)) {
@@ -101,13 +162,14 @@ int scan()
       int i = 0;
       do {
         string_attr[i++] = cbuf;
+        if (i < MAXSTRSIZE - 1)
+          string_attr[i] = '\0';
+        else
+          return -1;
         cbuf = fgetc(fp);
       } while (isalnum(cbuf));
-      string_attr[i] = '\0';
 
-      check_keyword();
-
-      return TNAME;
+      return check_keyword();
     } else if (isdigit(cbuf)) {
       // 数字の読み込み
       num_attr = 0;
@@ -116,6 +178,19 @@ int scan()
         cbuf = fgetc(fp);
       } while (isdigit(cbuf));
       return TNUMBER;
+    } else if (cbuf == '\'') {
+      // 'で囲まれた文字列の読み込み
+      int i = 0;
+      cbuf = fgetc(fp);  // 最初の'を読み飛ばす
+      while (cbuf != '\'' && cbuf != EOF) {
+        string_attr[i++] = cbuf;
+        cbuf = fgetc(fp);
+      }
+      if (cbuf == '\'') {
+        cbuf = fgetc(fp);  // 閉じの'を読み飛ばす
+      }
+      string_attr[i] = '\0';
+      return TSTRING;
     } else {
       // 1文字のトークン
       switch (cbuf) {
