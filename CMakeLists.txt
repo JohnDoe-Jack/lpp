@@ -16,9 +16,7 @@ endif()
 add_compile_options(-Wall -Wextra -Werror)
 
 # 実行ファイルを生成するためのソースファイルを指定
-# add_executable(educational_cpu_board main.c cpuboard.c)
-# add_executable(assembler assembler.cpp)
-# add_executable(test test.cpp)
+add_executable(lpp main.c scan.c id-list.c scan.h id-list.h)
 
 # インクルードディレクトリを指定
-# target_include_directories(educational_cpu_board PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(lpp PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

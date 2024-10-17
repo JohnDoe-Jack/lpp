@@ -50,6 +50,11 @@ int main(int nc, char * np[])
   }
   end_scan();
   /* 作成する部分:カウントした結果を出力する */
+  for (i = 1; i <= NUMOFTOKEN; i++) {
+    if (numtoken[i] > 0) {
+      printf("\"%s \": %d\n", tokenstr[i], numtoken[i]);
+    }
+  }
   return 0;
 }
 

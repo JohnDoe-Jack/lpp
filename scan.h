@@ -150,9 +150,10 @@ void end_scan(void);
 char * read_file(FILE * fp);
 
 extern int num_attr;
-extern char string_attr[MAXSTRSIZE];
+extern char string_attr[];
 extern FILE * fp;
 extern int buf;
 extern int cbuf;
+extern uint line_num;
 
 #endif
