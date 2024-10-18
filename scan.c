@@ -175,6 +175,7 @@ int scan()
       num_attr = 0;
       do {
         num_attr = num_attr * 10 + (cbuf - '0');
+        if (num_attr > MAXNUM) return -1;
         cbuf = fgetc(fp);
       } while (isdigit(cbuf));
       return TNUMBER;
@@ -186,9 +187,11 @@ int scan()
         string_attr[i++] = cbuf;
         cbuf = fgetc(fp);
       }
-      if (cbuf == '\'') {
+      if (cbuf == '\'' && cbuf != EOF) {
         cbuf = fgetc(fp);  // 閉じの'を読み飛ばす
       }
+
+      if (cbuf == EOF) return -1;
       string_attr[i] = '\0';
       return TSTRING;
     } else {
@@ -227,6 +230,7 @@ int scan()
           }
         case '(':
           cbuf = fgetc(fp);
+          printf("line_num: %d\n", line_num);
           return TLPAREN;
         case ')':
           cbuf = fgetc(fp);

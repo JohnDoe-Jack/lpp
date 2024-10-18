@@ -8,6 +8,8 @@
 #include <string.h>
 
 #define MAXSTRSIZE 1024
+#define MAXNUM 32768
+
 /* Token */
 #define TNAME 1       /* Name : Alphabet { Alphabet | Digit } */
 #define TPROGRAM 2    /* program : Keyword */
