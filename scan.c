@@ -136,7 +136,6 @@ int scan()
       case '\n':
       case '\r':
         check_newline();  // 行番号の更新
-        cbuf = fgetc(fp);
         continue;
       // {}による注釈を読み飛ばす
       case '{':
@@ -151,9 +150,12 @@ int scan()
         if (cbuf == '*') {
           // */が出るまで読み飛ばす
           while (1) {
-            while ((cbuf = fgetc(fp)) != '*')
+            while ((cbuf = fgetc(fp)) != '*') {
               if (cbuf == EOF) return -1;
-            if ((cbuf = fgetc(fp)) == '/') break;
+            }
+            if ((cbuf = fgetc(fp)) == '/') {
+              break;
+            }
           }
           cbuf = fgetc(fp);
           continue;
