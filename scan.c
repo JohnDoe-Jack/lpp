@@ -132,7 +132,6 @@ int scan()
       case '\t':
         cbuf = fgetc(fp);
         continue;
-        ;
       // 改行文字 (\n または \r)
       case '\n':
       case '\r':
@@ -141,20 +140,27 @@ int scan()
         continue;
       // {}による注釈を読み飛ばす
       case '{':
-        while ((cbuf = fgetc(fp)) != '}')
+        while ((cbuf = fgetc(fp)) != '}') {
           if (cbuf == EOF) return -1;
+        }
+        cbuf = fgetc(fp);
         continue;
       // /* */による注釈を読み飛ばす
       case '/':
-        if ((cbuf = fgetc(fp)) == '*') {
+        cbuf = fgetc(fp);
+        if (cbuf == '*') {
           // */が出るまで読み飛ばす
           while (1) {
             while ((cbuf = fgetc(fp)) != '*')
               if (cbuf == EOF) return -1;
             if ((cbuf = fgetc(fp)) == '/') break;
           }
+          cbuf = fgetc(fp);
+          continue;
+        } else {
+          printf("Illegal character: %c\n", cbuf);
+          return -1;
         }
-        continue;
     }
 
     if (isalpha(cbuf)) {
@@ -168,7 +174,6 @@ int scan()
           return -1;
         cbuf = fgetc(fp);
       } while (isalnum(cbuf));
-
       return check_keyword();
     } else if (isdigit(cbuf)) {
       // 数字の読み込み
@@ -183,15 +188,17 @@ int scan()
       // 'で囲まれた文字列の読み込み
       int i = 0;
       cbuf = fgetc(fp);  // 最初の'を読み飛ばす
-      while (cbuf != '\'' && cbuf != EOF) {
+      for (;;) {
+        if (cbuf == EOF) return -1;  // 'で閉じる前にEOFになった場合
+        if (cbuf == '\'') {
+          cbuf = fgetc(fp);
+          if (cbuf != '\'') break;
+        }
         string_attr[i++] = cbuf;
         cbuf = fgetc(fp);
       }
-      if (cbuf == '\'' && cbuf != EOF) {
-        cbuf = fgetc(fp);  // 閉じの'を読み飛ばす
-      }
 
-      if (cbuf == EOF) return -1;
+      if (cbuf == EOF) return -1;  // 'で閉じる前にEOFになった場合
       string_attr[i] = '\0';
       return TSTRING;
     } else {
@@ -230,7 +237,6 @@ int scan()
           }
         case '(':
           cbuf = fgetc(fp);
-          printf("line_num: %d\n", line_num);
           return TLPAREN;
         case ')':
           cbuf = fgetc(fp);
@@ -261,9 +267,9 @@ int scan()
         case EOF:
           return -1;
         default:
-          printf("Illegal character: %d\n", cbuf);
+          printf("Illegal character: %c\n", cbuf);
+          printf("line: %d\n", line_num);
           cbuf = fgetc(fp);
-          break;
           return -1;
       }
     }
