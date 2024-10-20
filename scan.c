@@ -8,10 +8,10 @@ char string_attr[MAXSTRSIZE];
 FILE * fp;
 int buf;
 int cbuf;
-uint line_num;
+uint line_num, token_line_num;
 
 /**
- * @brief 
+ * @brief 字句解析前に呼び出される関数
  * 
  * @param path
  * @return int 
@@ -19,7 +19,7 @@ uint line_num;
 int init_scan(const char * path)
 {
   if ((fp = fopen(path, "r")) == NULL) {
-    return -1;
+    return S_ERROR;
   }
   cbuf = fgetc(fp);
   line_num = 1;
@@ -124,9 +124,11 @@ void check_newline()
  */
 int scan()
 {
+  // トークンの行番号を記録
+  token_line_num = line_num;
   for (;;) {
     if (cbuf == EOF) {
-      return -1;
+      return S_ERROR;
     }
     switch (cbuf) {
       // 空白とタブは読み飛ばす
@@ -142,7 +144,7 @@ int scan()
       // {}による注釈を読み飛ばす
       case '{':
         while ((cbuf = fgetc(fp)) != '}') {
-          if (cbuf == EOF) return -1;
+          if (cbuf == EOF) return S_ERROR;
         }
         cbuf = fgetc(fp);
         continue;
@@ -153,7 +155,7 @@ int scan()
           // */が出るまで読み飛ばす
           while (1) {
             while ((cbuf = fgetc(fp)) != '*') {
-              if (cbuf == EOF) return -1;
+              if (cbuf == EOF) return S_ERROR;
             }
             if ((cbuf = fgetc(fp)) == '/') {
               break;
@@ -163,7 +165,7 @@ int scan()
           continue;
         } else {
           printf("Illegal character: %c\n", cbuf);
-          return -1;
+          return S_ERROR;
         }
     }
 
@@ -175,7 +177,7 @@ int scan()
         if (i < MAXSTRSIZE - 1)
           string_attr[i] = '\0';
         else
-          return -1;
+          return S_ERROR;
         cbuf = fgetc(fp);
       } while (isalnum(cbuf));
       return check_keyword();
@@ -184,7 +186,7 @@ int scan()
       num_attr = 0;
       do {
         num_attr = num_attr * 10 + (cbuf - '0');
-        if (num_attr > MAXNUM) return -1;
+        if (num_attr > MAXNUM) return S_ERROR;
         cbuf = fgetc(fp);
       } while (isdigit(cbuf));
       return TNUMBER;
@@ -193,7 +195,7 @@ int scan()
       int i = 0;
       cbuf = fgetc(fp);  // 最初の'を読み飛ばす
       for (;;) {
-        if (cbuf == EOF) return -1;  // 'で閉じる前にEOFになった場合
+        if (cbuf == EOF) return S_ERROR;  // 'で閉じる前にEOFになった場合
         if (cbuf == '\'') {
           cbuf = fgetc(fp);
           if (cbuf != '\'') break;
@@ -202,7 +204,7 @@ int scan()
         cbuf = fgetc(fp);
       }
 
-      if (cbuf == EOF) return -1;  // 'で閉じる前にEOFになった場合
+      if (cbuf == EOF) return S_ERROR;  // 'で閉じる前にEOFになった場合
       string_attr[i] = '\0';
       return TSTRING;
     } else {
@@ -269,17 +271,26 @@ int scan()
           cbuf = fgetc(fp);
           return TSEMI;
         case EOF:
-          return -1;
+          return S_ERROR;
         default:
           printf("Illegal character: %c\n", cbuf);
           printf("line: %d\n", line_num);
           cbuf = fgetc(fp);
-          return -1;
+          return S_ERROR;
       }
     }
   }
 }
 
-int get_linenum() { return line_num; }
+/**
+ * @brief 行番号を返す関数
+ * 
+ * @return int 
+ */
+int get_linenum() { return token_line_num; }
 
+/**
+ * @brief 字句解析が終わったあとに呼び出される関数
+ * 
+ */
 void end_scan() { fclose(fp); }

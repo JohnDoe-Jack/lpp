@@ -60,6 +60,12 @@ int main(int nc, char * np[])
   return 0;
 }
 
+/**
+ * @brief エラーメッセージを表示してエラーを返す関数
+ * 
+ * @param mes 
+ * @return int 
+ */
 int error(char * mes)
 {
   fprintf(stderr, "\nERROR: %s\n", mes);
