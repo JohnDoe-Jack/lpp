@@ -102,6 +102,7 @@ void check_newline()
   if (cbuf == '\r') {
     cbuf = fgetc(fp);
     if (cbuf == '\n') {
+      cbuf = fgetc(fp);
       line_num++;
     } else {
       line_num++;
@@ -109,6 +110,7 @@ void check_newline()
   } else if (cbuf == '\n') {
     cbuf = fgetc(fp);
     if (cbuf == '\r') {
+      cbuf = fgetc(fp);
       line_num++;
     } else {
       line_num++;
