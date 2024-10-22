@@ -195,6 +195,7 @@ int scan()
       int i = 0;
       cbuf = fgetc(fp);  // 最初の'を読み飛ばす
       for (;;) {
+        if (i >= MAXSTRSIZE - 1) return S_ERROR;
         if (cbuf == EOF) return S_ERROR;  // 'で閉じる前にEOFになった場合
         if (cbuf == '\'') {
           cbuf = fgetc(fp);

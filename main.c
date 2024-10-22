@@ -35,26 +35,22 @@ int main(int nc, char * np[])
   }
   if (init_scan(np[1]) < 0) {
     error("Cannot open input file.");
-    end_scan();
     return 0;
   }
   init_idtab();
-  /* 作成する部分：トークンカウント用の配列？を初期化する */
   for (i = 0; i <= NUMOFTOKEN; i++) {
     numtoken[i] = 0;
   }
 
   while ((token = scan()) >= 0) {
-    /* 作成する部分：トークンをカウントする */
     numtoken[token]++;
     if (token == TNAME) id_countup(string_attr);
   }
   end_scan();
-  /* 作成する部分:カウントした結果を出力する */
   for (i = 1; i <= NUMOFTOKEN; i++) {
     if (numtoken[i] > 0) {
       printf("\"%s\"\t%d\n", tokenstr[i], numtoken[i]);
-      if (i == 1) print_idtab();
+      if (i == TNAME) print_idtab();
     }
   }
   return 0;
