@@ -32,65 +32,12 @@ int init_scan(const char * path)
  */
 int check_keyword()
 {
-  if (strcmp(string_attr, "program") == 0) {
-    return TPROGRAM;
-  } else if (strcmp(string_attr, "var") == 0) {
-    return TVAR;
-  } else if (strcmp(string_attr, "array") == 0) {
-    return TARRAY;
-  } else if (strcmp(string_attr, "of") == 0) {
-    return TOF;
-  } else if (strcmp(string_attr, "begin") == 0) {
-    return TBEGIN;
-  } else if (strcmp(string_attr, "end") == 0) {
-    return TEND;
-  } else if (strcmp(string_attr, "if") == 0) {
-    return TIF;
-  } else if (strcmp(string_attr, "then") == 0) {
-    return TTHEN;
-  } else if (strcmp(string_attr, "else") == 0) {
-    return TELSE;
-  } else if (strcmp(string_attr, "procedure") == 0) {
-    return TPROCEDURE;
-  } else if (strcmp(string_attr, "return") == 0) {
-    return TRETURN;
-  } else if (strcmp(string_attr, "call") == 0) {
-    return TCALL;
-  } else if (strcmp(string_attr, "while") == 0) {
-    return TWHILE;
-  } else if (strcmp(string_attr, "do") == 0) {
-    return TDO;
-  } else if (strcmp(string_attr, "not") == 0) {
-    return TNOT;
-  } else if (strcmp(string_attr, "or") == 0) {
-    return TOR;
-  } else if (strcmp(string_attr, "div") == 0) {
-    return TDIV;
-  } else if (strcmp(string_attr, "and") == 0) {
-    return TAND;
-  } else if (strcmp(string_attr, "char") == 0) {
-    return TCHAR;
-  } else if (strcmp(string_attr, "integer") == 0) {
-    return TINTEGER;
-  } else if (strcmp(string_attr, "boolean") == 0) {
-    return TBOOLEAN;
-  } else if (strcmp(string_attr, "readln") == 0) {
-    return TREADLN;
-  } else if (strcmp(string_attr, "writeln") == 0) {
-    return TWRITELN;
-  } else if (strcmp(string_attr, "true") == 0) {
-    return TTRUE;
-  } else if (strcmp(string_attr, "false") == 0) {
-    return TFALSE;
-  } else if (strcmp(string_attr, "read") == 0) {
-    return TREAD;
-  } else if (strcmp(string_attr, "write") == 0) {
-    return TWRITE;
-  } else if (strcmp(string_attr, "break") == 0) {
-    return TBREAK;
-  } else {
-    return TNAME;
+  for (int i = 0; i < KEYWORDSIZE; i++) {
+    if (strcmp(string_attr, key[i].keyword) == 0) {
+      return key[i].keytoken;
+    }
   }
+  return TNAME;
 }
 
 /**
@@ -223,6 +170,27 @@ int scan()
         case '=':
           cbuf = fgetc(fp);
           return TEQUAL;
+        case '(':
+          cbuf = fgetc(fp);
+          return TLPAREN;
+        case ')':
+          cbuf = fgetc(fp);
+          return TRPAREN;
+        case '[':
+          cbuf = fgetc(fp);
+          return TLSQPAREN;
+        case ']':
+          cbuf = fgetc(fp);
+          return TRSQPAREN;
+        case '.':
+          cbuf = fgetc(fp);
+          return TDOT;
+        case ',':
+          cbuf = fgetc(fp);
+          return TCOMMA;
+        case ';':
+          cbuf = fgetc(fp);
+          return TSEMI;
         case '<':
           cbuf = fgetc(fp);
           if (cbuf == '=') {
@@ -242,18 +210,7 @@ int scan()
           } else {
             return TGR;
           }
-        case '(':
-          cbuf = fgetc(fp);
-          return TLPAREN;
-        case ')':
-          cbuf = fgetc(fp);
-          return TRPAREN;
-        case '[':
-          cbuf = fgetc(fp);
-          return TLSQPAREN;
-        case ']':
-          cbuf = fgetc(fp);
-          return TRSQPAREN;
+
         case ':':
           cbuf = fgetc(fp);
           if (cbuf == '=') {
@@ -262,17 +219,6 @@ int scan()
           } else {
             return TCOLON;
           }
-        case '.':
-          cbuf = fgetc(fp);
-          return TDOT;
-        case ',':
-          cbuf = fgetc(fp);
-          return TCOMMA;
-        case ';':
-          cbuf = fgetc(fp);
-          return TSEMI;
-        case EOF:
-          return S_ERROR;
         default:
           printf("Illegal character: %c\n", cbuf);
           printf("line: %d\n", line_num);
