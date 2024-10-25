@@ -3,6 +3,11 @@
 #include <ctype.h>
 #include <string.h>
 
+/**
+ * @file
+ * 字句解析を行う為の関数を纏めている
+ */
+
 int num_attr;
 char string_attr[MAXSTRSIZE];
 FILE * fp;
@@ -68,6 +73,7 @@ void check_newline()
 /**
  * @brief scan()は、ファイルから1文字ずつ読み込んで、トークンを切り出す関数
  * @return int 
+ * @details トークンの種類を返す
  */
 int scan()
 {

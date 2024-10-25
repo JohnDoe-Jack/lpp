@@ -1,3 +1,8 @@
+/**
+ * @file
+ * 構文中に出現した文字列を記録する
+ */
+
 #ifndef ID_LIST_H
 #define ID_LIST_H
 

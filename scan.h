@@ -61,7 +61,7 @@
 #define TWRITE 48     /* write : Keyword */
 #define TBREAK 49     /* break : Keyword */
 /**
- * @brief トークンの種類
+ * @brief TokenKind enum
  * @enum TokenKind
  */
 typedef enum {
@@ -119,7 +119,7 @@ typedef enum {
 typedef struct Token Token;
 
 /**
- * @brief トークン型
+ * @brief Token type
  * @struct Token
  */
 struct Token

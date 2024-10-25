@@ -1,6 +1,11 @@
 ﻿#include "id-list.h"
 
 #include "scan.h"
+
+/**
+ * @file
+ * 構文中に出現した文字列を記録する
+ */
 struct ID
 {
   char * name;
