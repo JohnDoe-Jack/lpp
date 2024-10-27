@@ -1,6 +1,9 @@
 ﻿#ifndef SCAN_H
 #define SCAN_H
-
+/**
+ * @file
+ * 字句解析を行う為の関数を纏めている
+ */
 /* scan.h  */
 #include <errno.h>
 #include <stdio.h>
@@ -60,75 +63,6 @@
 #define TREAD 47      /* read : Keyword */
 #define TWRITE 48     /* write : Keyword */
 #define TBREAK 49     /* break : Keyword */
-/**
- * @brief TokenKind enum
- * @enum TokenKind
- */
-typedef enum {
-  TK_NAME = 1,
-  TK_PROGRAM,
-  TK_VAR,
-  TK_ARRAY,
-  TK_OF,
-  TK_BEGIN,
-  TK_END,
-  TK_IF,
-  TK_THEN,
-  TK_ELSE,
-  TK_PROCEDURE,
-  TK_RETURN,
-  TK_CALL,
-  TK_WHILE,
-  TK_DO,
-  TK_NOT,
-  TK_OR,
-  TK_DIV,
-  TK_AND,
-  TK_CHAR,
-  TK_INTEGER,
-  TK_BOOLEAN,
-  TK_READLN,
-  TK_WRITELN,
-  TK_TRUE,
-  TK_FALSE,
-  TK_NUMBER,
-  TK_STRING,
-  TK_PLUS,
-  TK_MINUS,
-  TK_STAR,
-  TK_EQUAL,
-  TK_NOTEQ,
-  TK_LE,
-  TK_LEEQ,
-  TK_GR,
-  TK_GREQ,
-  TK_LPAREN,
-  TK_RPAREN,
-  TK_LSQPAREN,
-  TK_RSQPAREN,
-  TK_ASSIGN,
-  TK_DOT,
-  TK_COMMA,
-  TK_COLON,
-  TK_SEMI,
-  TK_READ,
-  TK_WRITE,
-  TK_BREAK
-} TokenKind;
-
-typedef struct Token Token;
-
-/**
- * @brief Token type
- * @struct Token
- */
-struct Token
-{
-  TokenKind kind;
-  Token * next;
-  int val;
-  char * str;
-};
 
 #define NUMOFTOKEN 49
 
@@ -156,6 +90,6 @@ extern char string_attr[];
 extern FILE * fp;
 extern int buf;
 extern int cbuf;
-extern uint line_num;
+extern uint line_num, token_line_num;
 
 #endif

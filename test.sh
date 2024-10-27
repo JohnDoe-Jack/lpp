@@ -1,10 +1,9 @@
 #!/bin/bash
+rm *.gcda *.gcno *.o *.gcov tc
 
-# カバレッジ情報を有効にしてコンパイル
 gcc -coverage -c *.c
 gcc -coverage -o tc *.o
 
-# testディレクトリ内のすべての.mplファイルに対して./tcを実行
 for file in test/*.mpl; do
   if [ -f "$file" ]; then
     echo "Processing $file..."
@@ -17,5 +16,4 @@ done
 ./tc
 ./tc test/hoge.mpl
 
-# カバレッジ情報を出力
 gcov -b *.gcda

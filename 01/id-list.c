@@ -6,15 +6,36 @@
  * @file
  * 構文中に出現した文字列を記録する
  */
+
+/**
+ * @brief 出現した名前を表す構造体
+ * @struct ID
+ */
 struct ID
 {
+  //! 名前
   char * name;
+  //! 出現回数
   int count;
+  //! 次のID構造体へのポインタ
   struct ID * nextp;
 } * idroot;
 
-void init_idtab() { /* Initialise the table */ idroot = NULL; }
+/**
+ * @brief 名前のリストを初期化する
+ * 
+ */
+void init_idtab()
+{ /* Initialise the table */
+  idroot = NULL;
+}
 
+/**
+ * @brief 名前を検索する
+ * もし以前に登録された名前であれば、そのID構造体へのポインタを返す
+ * @param np 
+ * @return struct ID* 
+ */
 struct ID * search_idtab(char * np)
 { /* search the name pointed by np */
   struct ID * p;
@@ -25,6 +46,12 @@ struct ID * search_idtab(char * np)
   return (NULL);
 }
 
+/**
+ * @brief 名前を登録してカウントアップする
+ * 今までに登録された名前であれば、カウントをインクリメントする。
+ * そうでなければ、新たにID構造体を作成し、名前を登録する
+ * @param np 
+ */
 void id_countup(char * np)
 { /* Register and count up the name pointed by np */
   struct ID * p;
@@ -49,6 +76,10 @@ void id_countup(char * np)
   }
 }
 
+/**
+ * @brief 登録されたデータを出力する
+ * 
+ */
 void print_idtab()
 { /* Output the registered data */
   struct ID * p;
@@ -58,6 +89,10 @@ void print_idtab()
   }
 }
 
+/**
+ * @brief 登録されたデータを解放する
+ * 
+ */
 void release_idtab()
 { /* Release tha data structure */
   struct ID *p, *q = NULL;

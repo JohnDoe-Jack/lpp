@@ -43,6 +43,7 @@ int main(int nc, char * np[])
   }
 
   while ((token = scan()) >= 0) {
+    token_line_num = line_num;
     numtoken[token]++;
     if (token == TNAME) id_countup(string_attr);
   }

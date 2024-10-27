@@ -8,16 +8,43 @@
  * 字句解析を行う為の関数を纏めている
  */
 
+/**
+ * @brief ひとかたまりの数字トークンを一時的に格納する
+ * 
+ */
 int num_attr;
+/**
+ * @brief ひとかたまりの文字列トークンを一時的に格納する
+ * 
+ */
 char string_attr[MAXSTRSIZE];
+/**
+ * @brief 解析するファイルを指すポインタ
+ * 
+ */
 FILE * fp;
-int buf;
+
+/**
+ * @brief ファイルから先読みした1文字を一時的に格納する
+ * 
+ */
 int cbuf;
-uint line_num, token_line_num;
+
+/**
+ * @brief 先読みした時点での行番号を格納する変数
+ * 
+ */
+uint line_num;
+
+/**
+ * @brief トークンの行番号を格納する変数
+ * 
+ */
+uint token_line_num;
 
 /**
  * @brief 字句解析前に呼び出される関数
- * 
+ * 正常にファイルを開けた場合は0を返す、失敗した場合は-1を返す
  * @param path
  * @return int 
  */
@@ -33,7 +60,8 @@ int init_scan(const char * path)
 
 /**
  * @brief keyword listに含まれていかをチェックする
- *
+ * 予約語が含まれていた場合、そのトークンの種類を返す
+ * @return int
  */
 int check_keyword()
 {
@@ -47,31 +75,21 @@ int check_keyword()
 
 /**
  * @brief 改行をチェックして、行番号をインクリメントする関数
- * @details \r,\n,\r\n,\n\rの四種類の改行を見分ける
+ * @details \r,\\n,\r\\n,\\n\rの四種類の改行を見分ける
+ * @return void
  */
 void check_newline()
 {
-  if (cbuf == '\r') {
+  if (
+    (cbuf == '\r' && (cbuf = fgetc(fp)) == '\n') || (cbuf == '\n' && (cbuf = fgetc(fp)) == '\r')) {
     cbuf = fgetc(fp);
-    if (cbuf == '\n') {
-      cbuf = fgetc(fp);
-      line_num++;
-    } else {
-      line_num++;
-    }
-  } else if (cbuf == '\n') {
-    cbuf = fgetc(fp);
-    if (cbuf == '\r') {
-      cbuf = fgetc(fp);
-      line_num++;
-    } else {
-      line_num++;
-    }
   }
+  line_num++;
 }
 
 /**
  * @brief scan()は、ファイルから1文字ずつ読み込んで、トークンを切り出す関数
+ * 大域変数cbufには1文字先読みした文字が格納されており、トークンの種類が決定するまでcbufを更新していく
  * @return int 
  * @details トークンの種類を返す
  */
@@ -237,13 +255,13 @@ int scan()
 
 /**
  * @brief 行番号を返す関数
- * 
+ * token_line_numは、1個のトークンが確定した時点での行番号を示す
  * @return int 
  */
 int get_linenum() { return token_line_num; }
 
 /**
  * @brief 字句解析が終わったあとに呼び出される関数
- * 
+ * fpは解析するファイルを指すポインタで、解析が終わったら閉じる
  */
 void end_scan() { fclose(fp); }
