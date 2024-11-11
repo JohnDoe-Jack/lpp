@@ -1,7 +1,5 @@
-#include "print.h"
+#include "lpp.h"
 
-#include "scan.h"
-#include "util.h"
 /**
  * @brief インデントの数をカウントする
  * 
@@ -12,9 +10,26 @@ uint indent_cnt = 0;
  * 
  */
 
+void printIndent()
+{
+  for (uint i = 0; i < indent_cnt; i++) {
+    printf("    ");
+  }
+}
+
+void printVar() {}
+
 void print(const uint token)
 {
+  printIndent();
   switch (token) {
+    case TVAR:
+      indent_cnt++;
+
+      printf("var\n");
+    case TSTRING:
+      printf("%s", string_attr);
+      break;
     case TPROGRAM:
       printf("program ");
       break;

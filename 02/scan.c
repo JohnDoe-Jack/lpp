@@ -1,11 +1,4 @@
-#include "scan.h"
-
-#include <ctype.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include "util.h"
+#include "lpp.h"
 
 /**
  * @file
@@ -47,19 +40,28 @@ uint line_num;
 uint token_line_num;
 
 /**
+ * @brief ファイルを開いてエラー出力も行う関数
+ * 
+ * @param path 
+ * @return FILE* 
+ */
+static FILE * openFile(const char * path)
+{
+  FILE * out = fopen(path, "w");
+  if (!out) error("Cannot open file: %s: %s", path, strerror(errno));
+  return out;
+}
+
+/**
  * @brief 初期化関数
  * プリティプリントを行う前に呼び出す
  * @param filename 
  * @return FILE* 
  */
-FILE * initScan(const char * filename)
+FILE * initScan(const char * path)
 {
   FILE * fin;
-  if ((fin = fopen(filename, "r")) == NULL) {
-    error("File not found.", getLinenum());
-    fprintf(stderr, "No such file: %s", filename);
-    exit(1);
-  }
+  fin = openFile(path);
   cbuf = fgetc(fp);
 
   return fin;

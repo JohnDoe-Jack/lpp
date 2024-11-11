@@ -8,4 +8,4 @@ endif()
 
 add_compile_options(-Wall -Wextra -Werror)
 
-add_executable(pp main.c ll.c ll.h print.c print.h scan.c scan.h util.c util.h)
+add_executable(pp main.c ll.c ll.h parse.c parse.h scan.c scan.h util.c util.h)
