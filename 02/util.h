@@ -1,5 +1,7 @@
 #ifndef UTIL_H
 #define UTIL_H
-void error(const char *);
+#include <sys/types.h>
+
+void error(const char *, const uint);
 
 #endif

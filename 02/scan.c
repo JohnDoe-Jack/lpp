@@ -2,7 +2,10 @@
 
 #include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+
+#include "util.h"
 
 /**
  * @file
@@ -53,7 +56,7 @@ FILE * initScan(const char * filename)
 {
   FILE * fin;
   if ((fin = fopen(filename, "r")) == NULL) {
-    error("File not found.");
+    error("File not found.", getLinenum());
     fprintf(stderr, "No such file: %s", filename);
     exit(1);
   }
@@ -120,7 +123,7 @@ int scan()
       case '{':
         while ((cbuf = fgetc(fp)) != '}') {
           if (cbuf == EOF) {
-            error("Expected '}' at end of line (fix available)");
+            error("Expected '}' at end of line (fix available)", getLinenum());
             return S_ERROR;
           }
         }
@@ -167,7 +170,7 @@ int scan()
       do {
         num_attr = num_attr * 10 + (cbuf - '0');
         if (num_attr > MAXNUM) {
-          error("Too big number.");
+          error("Too big number.", getLinenum());
           return S_ERROR;
         }
         cbuf = fgetc(fp);

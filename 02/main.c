@@ -1,7 +1,7 @@
 #include <stdio.h>
-#include <stdlib.h>
 
 #include "scan.h"
+#include "util.h"
 
 /* keyword list */
 struct KEY key[KEYWORDSIZE] = {
@@ -26,7 +26,7 @@ int main(int argc, char ** argv)
 {
   int token;
   if (argc < 2) {
-    error("File name is not given.");
+    error("File name is not given.", getLinenum());
     return -1;
   }
 

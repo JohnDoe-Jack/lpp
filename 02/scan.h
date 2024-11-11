@@ -6,7 +6,7 @@
  */
 /* scan.h  */
 #include <stdio.h>
-#include <stdlib.h>
+#include <sys/types.h>
 
 #define MAXSTRSIZE 1024
 #define MAXNUM 32768
@@ -73,8 +73,6 @@ extern struct KEY
   char * keyword;
   int keytoken;
 } key[KEYWORDSIZE];
-
-int error(char * mes);
 
 FILE * initScan(const char * path);
 int scan(void);
