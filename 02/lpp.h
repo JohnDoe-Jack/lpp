@@ -3,13 +3,12 @@
 #include <ctype.h>
 #include <errno.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
-#include <stdio.h>
-#include <stdbool.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 
 #define MAXSTRSIZE 1024
 #define MAXNUM 32768
@@ -70,35 +69,33 @@
 
 #define S_ERROR -1
 
-typedef struct KEY KEY;
+/**
+ * @brief トークンの種類を表す列挙型
+ * 
+ */
+typedef enum {
+  TK_IDENT,    // 識別子
+  TK_PUNCT,    // 区切り記号
+  TK_KEYWORD,  // キーワード
+  TK_STR,      // 文字列
+  TK_NUM,      // 数値
+  TK_EOF,      // ファイルの終わり
+} TokenKind;
 
-struct KEY
+typedef struct Token Token;
+
+struct Token
 {
-  char * keyword;
-  int keytoken;
-} key[KEYWORDSIZE];
+  TokenKind kind;  // トークンの種類
+  Token * next;    // 次のトークン
+  char *loc;       // トークンの位置
+  int line_no;     // トークンの行
+  char * str;      // トークン文字列
+  bool at_bol;     // 行頭かどうか
+  bool has_space;  // トークンの前に空白があるか
+};
 
-/* keyword list */
-struct KEY key[KEYWORDSIZE] = {
-  {"and", TAND},       {"array", TARRAY},         {"begin", TBEGIN},     {"boolean", TBOOLEAN},
-  {"break", TBREAK},   {"call", TCALL},           {"char", TCHAR},       {"div", TDIV},
-  {"do", TDO},         {"else", TELSE},           {"end", TEND},         {"false", TFALSE},
-  {"if", TIF},         {"integer", TINTEGER},     {"not", TNOT},         {"of", TOF},
-  {"or", TOR},         {"procedure", TPROCEDURE}, {"program", TPROGRAM}, {"read", TREAD},
-  {"readln", TREADLN}, {"return", TRETURN},       {"then", TTHEN},       {"true", TTRUE},
-  {"var", TVAR},       {"while", TWHILE},         {"write", TWRITE},     {"writeln", TWRITELN}};
-
-/* string of each token */
-char * token_str[NUMOFTOKEN + 1] = {
-  "",       "NAME",   "program",   "var",     "array",   "of",     "begin",   "end",  "if",
-  "then",   "else",   "procedure", "return",  "call",    "while",  "do",      "not",  "or",
-  "div",    "and",    "char",      "integer", "boolean", "readln", "writeln", "true", "false",
-  "NUMBER", "STRING", "+",         "-",       "*",       "=",      "<>",      "<",    "<=",
-  ">",      ">=",     "(",         ")",       "[",       "]",      ":=",      ".",    ",",
-  ":",      ";",      "read",      "write",   "break"};
-
-FILE * initScan(const char * path);
 void error(char *, ...);
-int scan(void);
+Token * tokenizeFile(char *);
 int getLinenum(void);
 #endif

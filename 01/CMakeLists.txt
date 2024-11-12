@@ -20,3 +20,5 @@ add_executable(tc main.c scan.c id-list.c scan.h id-list.h)
 
 # インクルードディレクトリを指定
 target_include_directories(tc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+set(GCC_PLUGIN_PATH ${CMAKE_CURRENT_SOURCE_DIR}/timetrace.so)
+target_link_libraries(tc PRIVATE ${GCC_PLUGIN_PATH})

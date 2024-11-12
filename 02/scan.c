@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include "lpp.h"
 
 /**
@@ -6,26 +8,59 @@
  */
 
 /**
+ * @brief キーワードの種類を表す列挙型
+ * 
+ */
+struct KEY
+{
+  char * keyword;
+  int keytoken;
+} key[KEYWORDSIZE];
+
+/* keyword list */
+struct KEY key[KEYWORDSIZE] = {
+  {"and", TAND},       {"array", TARRAY},         {"begin", TBEGIN},     {"boolean", TBOOLEAN},
+  {"break", TBREAK},   {"call", TCALL},           {"char", TCHAR},       {"div", TDIV},
+  {"do", TDO},         {"else", TELSE},           {"end", TEND},         {"false", TFALSE},
+  {"if", TIF},         {"integer", TINTEGER},     {"not", TNOT},         {"of", TOF},
+  {"or", TOR},         {"procedure", TPROCEDURE}, {"program", TPROGRAM}, {"read", TREAD},
+  {"readln", TREADLN}, {"return", TRETURN},       {"then", TTHEN},       {"true", TTRUE},
+  {"var", TVAR},       {"while", TWHILE},         {"write", TWRITE},     {"writeln", TWRITELN}};
+
+/* string of each token */
+char * token_str[NUMOFTOKEN + 1] = {
+  "",       "NAME",   "program",   "var",     "array",   "of",     "begin",   "end",  "if",
+  "then",   "else",   "procedure", "return",  "call",    "while",  "do",      "not",  "or",
+  "div",    "and",    "char",      "integer", "boolean", "readln", "writeln", "true", "false",
+  "NUMBER", "STRING", "+",         "-",       "*",       "=",      "<>",      "<",    "<=",
+  ">",      ">=",     "(",         ")",       "[",       "]",      ":=",      ".",    ",",
+  ":",      ";",      "read",      "write",   "break"};
+
+static bool at_bol;
+
+static bool has_space;
+
+/**
  * @brief ひとかたまりの数字トークンを一時的に格納する
  * 
  */
-int num_attr;
+static int num_attr;
 /**
  * @brief ひとかたまりの文字列トークンを一時的に格納する
  * 
  */
-char string_attr[MAXSTRSIZE];
+static char string_attr[MAXSTRSIZE];
 /**
  * @brief 解析するファイルを指すポインタ
  * 
  */
 FILE * fp;
 
-/**
- * @brief ファイルから先読みした1文字を一時的に格納する
- * 
- */
-int cbuf;
+// /**
+//  * @brief ファイルから先読みした1文字を一時的に格納する
+//  * 
+//  */
+// int cbuf;
 
 /**
  * @brief 先読みした時点での行番号を格納する変数
@@ -47,24 +82,39 @@ uint token_line_num;
  */
 static FILE * openFile(const char * path)
 {
-  FILE * out = fopen(path, "w");
+  FILE * out = fopen(path, "r");
   if (!out) error("Cannot open file: %s: %s", path, strerror(errno));
   return out;
 }
 
 /**
- * @brief 初期化関数
- * プリティプリントを行う前に呼び出す
- * @param filename 
- * @return FILE* 
+ * @brief ファイルの読み込みを行う
+ * 
+ * @param path 
+ * @return char* 
+ * ファイルの中身を文字列として返す
  */
-FILE * initScan(const char * path)
+static char * readFile(char * path)
 {
-  FILE * fin;
-  fin = openFile(path);
-  cbuf = fgetc(fp);
+  FILE * fp;
+  fp = openFile(path);
 
-  return fin;
+  char * buf;
+  size_t buflen;
+  FILE * out = open_memstream(&buf, &buflen);
+
+  for (;;) {
+    char buf2[4096];
+    int n = fread(buf2, 1, sizeof(buf2), fp);
+    if (n == 0) break;
+    fwrite(buf2, 1, n, out);
+  }
+  fclose(fp);
+  fflush(out);
+  if (buflen == 0 || buf[buflen - 1] != '\n') fputc('\n', out);
+  fputc('\0', out);
+  fclose(out);
+  return buf;
 }
 
 /**
@@ -72,7 +122,7 @@ FILE * initScan(const char * path)
  * 予約語が含まれていた場合、そのトークンの種類を返す
  * @return int
  */
-int checkKeyword()
+static int checkKeyword()
 {
   for (int i = 0; i < KEYWORDSIZE; i++) {
     if (strcmp(string_attr, key[i].keyword) == 0) {
@@ -87,11 +137,11 @@ int checkKeyword()
  * @details \r,\\n,\r\\n,\\n\rの四種類の改行を見分ける
  * @return void
  */
-void checkNewline()
+static void checkNewline(char*p)
 {
   if (
-    (cbuf == '\r' && (cbuf = fgetc(fp)) == '\n') || (cbuf == '\n' && (cbuf = fgetc(fp)) == '\r')) {
-    cbuf = fgetc(fp);
+    (*p == '\r' && *(p++) == '\n') || (*p == '\n' && *(p++) == '\r')) {
+    p++;
   }
   line_num++;
 }
@@ -102,172 +152,209 @@ void checkNewline()
  * @return int 
  * @details トークンの種類を返す
  */
-int scan()
+static int scan(char *p)
 {
   // トークンの行番号を記録
   token_line_num = line_num;
   for (;;) {
-    if (cbuf == EOF) {
+    if (*p == EOF) {
       return S_ERROR;
     }
-    switch (cbuf) {
+    switch (*p) {
       // 空白とタブは読み飛ばす
       case ' ':
       case '\t':
-        cbuf = fgetc(fp);
+        p++;
         continue;
       // 改行文字 (\n または \r)
       case '\n':
       case '\r':
-        checkNewline();  // 行番号の更新
+        checkNewline(p);  // 行番号の更新
         continue;
       // {}による注釈を読み飛ばす
       case '{':
-        while ((cbuf = fgetc(fp)) != '}') {
-          if (cbuf == EOF) {
+        while (*(p++) != '}') {
+          if (*p == EOF) {
             error("Expected '}' at end of line (fix available)", getLinenum());
             return S_ERROR;
           }
         }
-        cbuf = fgetc(fp);
+        p++;
         continue;
       // /* */による注釈を読み飛ばす
       case '/':
-        cbuf = fgetc(fp);
-        if (cbuf == '*') {
+        p++;
+        if (*p == '*') {
           // */が出るまで読み飛ばす
           while (1) {
-            while ((cbuf = fgetc(fp)) != '*') {
-              if (cbuf == EOF) return S_ERROR;
+            while (*(p++) != '*') {
+              if (*p == EOF) return S_ERROR;
             }
-            if ((cbuf = fgetc(fp)) == '/') {
+            if (*(p++) == '/') {
               break;
             }
           }
-          cbuf = fgetc(fp);
+          p++;
           continue;
         } else {
-          fprintf(stderr, "Illegal character: %c\n at %d line.", cbuf, getLinenum());
+          fprintf(stderr, "Illegal character: %c\n at %d line.", *p, getLinenum());
           return S_ERROR;
         }
     }
 
-    if (isalpha(cbuf)) {
+    if (isalpha(*p)) {
       // 名前の読み込み
       int i = 0;
       do {
-        string_attr[i++] = cbuf;
+        string_attr[i++] = *p;
         if (i < MAXSTRSIZE - 1)
           string_attr[i] = '\0';
         else {
           fprintf(stderr, "Too long string at %d line.", getLinenum());
           return S_ERROR;
         }
-        cbuf = fgetc(fp);
-      } while (isalnum(cbuf));
+        *p = fgetc(fp);
+      } while (isalnum(*p));
       return checkKeyword();
-    } else if (isdigit(cbuf)) {
+    } else if (isdigit(*p)) {
       // 数字の読み込み
       num_attr = 0;
       do {
-        num_attr = num_attr * 10 + (cbuf - '0');
+        num_attr = num_attr * 10 + (*p - '0');
         if (num_attr > MAXNUM) {
           error("Too big number.", getLinenum());
           return S_ERROR;
         }
-        cbuf = fgetc(fp);
-      } while (isdigit(cbuf));
+        *p = fgetc(fp);
+      } while (isdigit(*p));
       return TNUMBER;
-    } else if (cbuf == '\'') {
+    } else if (*p == '\'') {
       // 'で囲まれた文字列の読み込み
       int i = 0;
-      cbuf = fgetc(fp);  // 最初の'を読み飛ばす
+      *p = fgetc(fp);  // 最初の'を読み飛ばす
       for (;;) {
         if (i >= MAXSTRSIZE - 1) return S_ERROR;
-        if (cbuf == EOF) return S_ERROR;  // 'で閉じる前にEOFになった場合
-        if (cbuf == '\'') {
-          cbuf = fgetc(fp);
-          if (cbuf != '\'') break;
+        if (*p == EOF) return S_ERROR;  // 'で閉じる前にEOFになった場合
+        if (*p == '\'') {
+          *p = fgetc(fp);
+          if (*p != '\'') break;
         }
-        string_attr[i++] = cbuf;
-        cbuf = fgetc(fp);
+        string_attr[i++] = *p;
+        *p = fgetc(fp);
       }
 
-      if (cbuf == EOF) return S_ERROR;  // 'で閉じる前にEOFになった場合
+      if (*p == EOF) return S_ERROR;  // 'で閉じる前にEOFになった場合
       string_attr[i] = '\0';
       return TSTRING;
     } else {
       // 1文字のトークン
-      switch (cbuf) {
+      switch (*p) {
         case '+':
-          cbuf = fgetc(fp);
+          p++;
           return TPLUS;
         case '-':
-          cbuf = fgetc(fp);
+          p++;
           return TMINUS;
         case '*':
-          cbuf = fgetc(fp);
+          p++;
           return TSTAR;
         case '=':
-          cbuf = fgetc(fp);
+          p++;
           return TEQUAL;
         case '(':
-          cbuf = fgetc(fp);
+         p++;
           return TLPAREN;
         case ')':
-          cbuf = fgetc(fp);
+           p++;
           return TRPAREN;
         case '[':
-          cbuf = fgetc(fp);
+           p++;
           return TLSQPAREN;
         case ']':
-          cbuf = fgetc(fp);
+           p++;
           return TRSQPAREN;
         case '.':
-          cbuf = fgetc(fp);
+          p++;
           return TDOT;
         case ',':
-          cbuf = fgetc(fp);
+           p++;
           return TCOMMA;
         case ';':
-          cbuf = fgetc(fp);
+           p++;
           return TSEMI;
         case '<':
-          cbuf = fgetc(fp);
-          if (cbuf == '=') {
-            cbuf = fgetc(fp);
+          p++;
+          if (*p == '=') {
+            p++;
             return TLEEQ;
-          } else if (cbuf == '>') {
-            cbuf = fgetc(fp);
+          } else if (*p == '>') {
+            p++;
             return TNOTEQ;
           } else {
             return TLE;
           }
         case '>':
-          cbuf = fgetc(fp);
-          if (cbuf == '=') {
-            cbuf = fgetc(fp);
+          p++;
+          if (*p == '=') {
+             p++;
             return TGREQ;
           } else {
             return TGR;
           }
 
         case ':':
-          cbuf = fgetc(fp);
-          if (cbuf == '=') {
-            cbuf = fgetc(fp);
+           p++;
+          if (*p == '=') {
+            p++;
             return TASSIGN;
           } else {
             return TCOLON;
           }
         default:
-          printf("Illegal character: %c\n", cbuf);
+          printf("Illegal character: %c\n", *p);
           printf("line: %d\n", line_num);
-          cbuf = fgetc(fp);
+          p++;
           return S_ERROR;
       }
     }
   }
+}
+
+static Token *newToken(TokenKind kind,char *start){
+  Token *tok = calloc(1, sizeof(Token));
+  tok->kind = kind;
+  tok->loc = start;
+  tok->at_bol = at_bol;
+  tok->has_space = has_space;
+  tok->line_no = token_line_num;
+
+  at_bol = has_space = false;
+
+  return tok;
+}
+
+Token *tokenize(char *p){
+  at_bol = true;
+  has_space = false;
+
+  while(*p){
+      scan(p);
+  }
+  return newToken(TK_EOF, NULL);
+}
+
+/**
+ * @brief トークンのリストを返す関数
+ * 入力されたファイルに対して構文解析を行い、tokenize関数でトークンのリストを返す
+ * @param path 
+ * @return Token* 
+ */
+Token * tokenizeFile(char * path)
+{
+  char * p = readFile(path);
+
+  if (!p) return NULL;
+  return tokenize(p);
 }
 
 /**

@@ -1,0 +1,1 @@
+[{"name":"include","ts":237.976,"ph":"X","dur":407.741,"pid":0,"tid":0,"args":{"file":"/usr/include/stdc-predef.h"}},{"name":"unit (start)","ts":0.000,"ph":"i","pid":0,"tid":0},{"name":"plugin_dump","ts":11592.707,"ph":"X","dur":35.070,"pid":0,"tid":0}]
