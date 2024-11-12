@@ -84,18 +84,32 @@ typedef enum {
 
 typedef struct Token Token;
 
+/**
+ * @brief トークンの構造体
+ * TokenKind kind トークンの種類
+ * int id トークンのID
+ * Token * next 次のトークン
+ * char *loc トークンの位置
+ * int len トークンの長さ
+ * int line_no トークンの行
+ * char * str トークン文字列
+ * int num 数値
+ * bool at_bol 行頭かどうか
+ * bool has_space トークンの前に空白があるか
+ */
 struct Token
 {
   TokenKind kind;  // トークンの種類
+  int id;          // トークンのID
   Token * next;    // 次のトークン
-  char *loc;       // トークンの位置
+  int len;         // トークンの長さ
   int line_no;     // トークンの行
   char * str;      // トークン文字列
+  int num;         // 数値
   bool at_bol;     // 行頭かどうか
   bool has_space;  // トークンの前に空白があるか
 };
 
 void error(char *, ...);
 Token * tokenizeFile(char *);
-int getLinenum(void);
 #endif
