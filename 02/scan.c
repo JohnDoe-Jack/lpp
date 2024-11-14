@@ -61,7 +61,7 @@ static char string_attr[MAXSTRSIZE];
  * @brief 先読みした時点での行番号を格納する変数
  * 
  */
-uint line_num;
+uint line_num = 1;
 
 /**
  * @brief ファイルを開いてエラー出力も行う関数
@@ -106,6 +106,14 @@ static char * readFile(char * path)
   return buf;
 }
 
+/**
+ * @brief 新しいトークンを生成する関数
+ * 
+ * @param kind トークンの種類
+ * @param id トークン識別ID
+ * @param len トークンの長さ
+ * @return Token* 
+ */
 static Token * newToken(TokenKind kind, int id, int len)
 {
   Token * tok = calloc(1, sizeof(Token));
@@ -126,41 +134,33 @@ static Token * newToken(TokenKind kind, int id, int len)
  * 予約語が含まれていた場合、そのトークンの種類を返す
  * @return int
  */
-static Token * checkKeyword()
+static void checkKeyword(Token * cur)
 {
   // printf("string_attr: %s\n", string_attr);
   for (int i = 0; i < KEYWORDSIZE; i++) {
     if (strcmp(string_attr, key[i].keyword) == 0) {
-      return newToken(TK_KEYWORD, key[i].keytoken, strlen(key[i].keyword));
+      cur = cur->next = newToken(TK_KEYWORD, key[i].keytoken, strlen(key[i].keyword));
     }
   }
-  return newToken(TK_IDENT, TNAME, strlen(string_attr));
-}
-
-/**
- * @brief 改行をチェックして、行番号をインクリメントする関数
- * @details \r,\\n,\r\\n,\\n\rの四種類の改行を見分ける
- * @return void
- */
-static void checkNewline(char * p)
-{
-  if ((*p == '\r' && *(p++) == '\n') || (*p == '\n' && *(p++) == '\r')) {
-    p++;
-  }
-  line_num++;
+  printf("string_attr: %s\n", string_attr);
+  cur = cur->next = newToken(TK_IDENT, TNAME, strlen(string_attr));
 }
 
 /**
  * @brief scan()は、ファイルから1文字ずつ読み込んで、トークンを切り出す関数
  * pには1文字先読みした文字が格納されており、トークンの種類が決定するまでcbufを更新していく
- * @return int 
+ * @return Token* 
  * @details トークンの種類を返す
  */
-static Token * scan(char * p)
+static Token * scan(char * p, Token * head)
 {
+  Token * cur = head;
+  at_bol = true;
+  has_space = false;
   for (;;) {
-    if (*p == EOF) {
-      return newToken(TK_EOF, 0, 0);
+    if (*p == '\0') {
+      cur = cur->next = newToken(TK_EOF, 0, 0);
+      return head->next;
     }
     switch (*p) {
       // 空白とタブは読み飛ばす
@@ -171,14 +171,19 @@ static Token * scan(char * p)
       // 改行文字 (\n または \r)
       case '\n':
       case '\r':
-        checkNewline(p);  // 行番号の更新
+        if ((*p == '\r' && *p++ == '\n') || (*p == '\n' && *p++ == '\r')) {
+          p++;
+        }
+        printf("line_num: %d\n", line_num);
+        line_num++;
         continue;
       // {}による注釈を読み飛ばす
       case '{':
         while (*(p++) != '}') {
-          if (*p == EOF) {
+          if (*p == '\0') {
             error("Expected '}' at end of line (fix available)", line_num);
-            return newToken(TK_EOF, 0, 0);
+            cur = cur->next = newToken(TK_EOF, 0, 0);
+            return head->next;
           }
         }
         p++;
@@ -190,7 +195,10 @@ static Token * scan(char * p)
           // */が出るまで読み飛ばす
           while (1) {
             while (*(p++) != '*') {
-              if (*p == EOF) return newToken(TK_EOF, 0, 0);
+              if (*p == '\0') {
+                cur = cur->next = newToken(TK_EOF, 0, 0);
+                return head->next;
+              }
             }
             if (*(p++) == '/') {
               break;
@@ -200,7 +208,8 @@ static Token * scan(char * p)
           continue;
         } else {
           fprintf(stderr, "Illegal character: %c\n at %d line.", *p, line_num);
-          return newToken(TK_EOF, 0, 0);
+          cur = cur->next = newToken(TK_EOF, 0, 0);
+          return head->next;
         }
     }
 
@@ -213,11 +222,13 @@ static Token * scan(char * p)
           string_attr[i] = '\0';
         else {
           fprintf(stderr, "Too long string at %d line.", line_num);
-          return newToken(TK_EOF, 0, 0);
+          cur = cur->next = newToken(TK_EOF, 0, 0);
+          return head->next;
         }
         p++;
       } while (isalnum(*p));
-      return checkKeyword();
+      checkKeyword(cur);
+      continue;
     } else if (isdigit(*p)) {
       // 数字の読み込み
       int len = 0;
@@ -227,11 +238,13 @@ static Token * scan(char * p)
         num_attr = num_attr * 10 + (*p - '0');
         if (num_attr > MAXNUM) {
           error("Too big number.", line_num);
-          return newToken(TK_EOF, 0, 0);
+          cur = cur->next = newToken(TK_EOF, 0, 0);
+          return head->next;
         }
         p++;
       } while (isdigit(*p));
-      return newToken(TK_NUM, TNUMBER, len);
+      cur = cur->next = newToken(TK_NUM, TNUMBER, len);
+      cur->num = num_attr;
     } else if (*p == '\'') {
       // 'で囲まれた文字列の読み込み
       int str_len = 0;
@@ -239,9 +252,13 @@ static Token * scan(char * p)
       for (;;) {
         if (str_len >= MAXSTRSIZE - 1) {
           error("Too long string at %d line.", line_num);
-          return newToken(TK_EOF, 0, 0);
+          cur = cur->next = newToken(TK_EOF, 0, 0);
+          return head->next;
         }
-        if (*p == EOF) return newToken(TK_EOF, 0, 0);  // 'で閉じる前にEOFになった場合
+        if (*p == '\0') {
+          cur = cur->next = newToken(TK_EOF, 0, 0);  // 'で閉じる前にEOFになった場合
+          return head->next;
+        }
         if (*p == '\'') {
           p++;
           if (*p != '\'') break;
@@ -250,93 +267,115 @@ static Token * scan(char * p)
         p++;
       }
 
-      if (*p == EOF) return newToken(TK_EOF, 0, 0);  // 'で閉じる前にEOFになった場合
+      if (*p == '\0') {
+        cur = cur->next = newToken(TK_EOF, 0, 0);  // 'で閉じる前にEOFになった場合
+        return head->next;
+      }
       string_attr[str_len] = '\0';
-      return newToken(TK_STR, TSTRING, str_len);
+      cur = cur->next = newToken(TK_STR, TSTRING, str_len);
+      cur->str = string_attr;
+      printf("string_attr: %s\n", string_attr);
     } else {
       // 1文字のトークン
       switch (*p) {
         case '+':
           p++;
-          return newToken(TK_PUNCT, TPLUS, 1);
+          cur = cur->next = newToken(TK_PUNCT, TPLUS, 1);
+          break;
         case '-':
           p++;
-          return newToken(TK_PUNCT, TMINUS, 1);
+          cur = cur->next = newToken(TK_PUNCT, TMINUS, 1);
+          break;
         case '*':
           p++;
-          return newToken(TK_PUNCT, TSTAR, 1);
+          cur = cur->next = newToken(TK_PUNCT, TSTAR, 1);
+          break;
         case '=':
           p++;
-          return newToken(TK_PUNCT, TEQUAL, 1);
+          cur = cur->next = newToken(TK_PUNCT, TEQUAL, 1);
+          break;
         case '(':
           p++;
-          return newToken(TK_PUNCT, TLPAREN, 1);
+          cur = cur->next = newToken(TK_PUNCT, TLPAREN, 1);
+          break;
         case ')':
           p++;
-          return newToken(TK_PUNCT, TRPAREN, 1);
+          cur = cur->next = newToken(TK_PUNCT, TRPAREN, 1);
+          break;
         case '[':
           p++;
-          return newToken(TK_PUNCT, TLSQPAREN, 1);
+          cur = cur->next = newToken(TK_PUNCT, TLSQPAREN, 1);
+          break;
         case ']':
           p++;
-          return newToken(TK_PUNCT, TRSQPAREN, 1);
+          cur = cur->next = newToken(TK_PUNCT, TRSQPAREN, 1);
+          break;
         case '.':
           p++;
-          return newToken(TK_PUNCT, TDOT, 1);
+          cur = cur->next = newToken(TK_PUNCT, TDOT, 1);
+          break;
         case ',':
           p++;
-          return newToken(TK_PUNCT, TCOMMA, 1);
+          cur = cur->next = newToken(TK_PUNCT, TCOMMA, 1);
+          break;
         case ';':
           p++;
-          return newToken(TK_PUNCT, TSEMI, 1);
+          cur = cur->next = newToken(TK_PUNCT, TSEMI, 1);
+          break;
         case '<':
           p++;
           if (*p == '=') {
             p++;
-            return newToken(TK_PUNCT, TLEEQ, 2);
+            cur = cur->next = newToken(TK_PUNCT, TLEEQ, 2);
+            break;
           } else if (*p == '>') {
             p++;
-            return newToken(TK_PUNCT, TNOTEQ, 2);
+            cur = cur->next = newToken(TK_PUNCT, TNOTEQ, 2);
+            break;
           } else {
-            return newToken(TK_PUNCT, TLE, 1);
+            cur = cur->next = newToken(TK_PUNCT, TLE, 1);
+            break;
           }
         case '>':
           p++;
           if (*p == '=') {
             p++;
-            return newToken(TK_PUNCT, TGREQ, 2);
+            cur = cur->next = newToken(TK_PUNCT, TGREQ, 2);
+            break;
           } else {
-            return newToken(TK_PUNCT, TGR, 1);
+            cur = cur->next = newToken(TK_PUNCT, TGR, 1);
+            break;
           }
 
         case ':':
           p++;
           if (*p == '=') {
             p++;
-            return newToken(TK_PUNCT, TASSIGN, 2);
+            cur = cur->next = newToken(TK_PUNCT, TASSIGN, 2);
+            break;
           } else {
-            return newToken(TK_PUNCT, TCOLON, 1);
+            cur = cur->next = newToken(TK_PUNCT, TCOLON, 1);
+            break;
           }
         default:
           printf("Illegal character: %c\n", *p);
           printf("line: %d\n", line_num);
           p++;
-          return newToken(TK_EOF, 0, 0);
+          cur = cur->next = newToken(TK_EOF, 0, 0);
+          return head->next;
       }
     }
   }
+  // Unreachable
+  return head->next;
 }
 
 Token * tokenize(char * p)
 {
   Token head = {};
-  Token * cur = &head;
-  at_bol = true;
-  has_space = false;
-
-  while (*p) {
-    cur = cur->next = scan(p);
-  }
+  head.next = scan(p, &head);
+  printf("head.next->kind: %d\n", head.next->kind);
+  printf("head.next->next->kind: %d\n", head.next->next->kind);
   return head.next;
 }
 
@@ -351,5 +390,6 @@ Token * tokenizeFile(char * path)
   char * p = readFile(path);
 
   if (!p) return NULL;
+
   return tokenize(p);
 }

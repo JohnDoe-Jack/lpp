@@ -5,3 +5,4 @@ build
 *.o
 *.gcov
 tc
+.vscode
