@@ -6,10 +6,11 @@
  * @param fmt エラーメッセージ
  * @param line_num 行番号
  */
-void error(char * fmt, ...)
+int error(char * fmt, ...)
 {
   va_list ap;
   va_start(ap, fmt);
   vfprintf(stderr, fmt, ap);
   fprintf(stderr, "\n");
+  return 1;
 }

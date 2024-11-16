@@ -1,5 +1,3 @@
-#include <stdio.h>
-
 #include "lpp.h"
 
 /**
@@ -7,18 +5,23 @@
  * 字句解析を行う為の関数を纏めている
  */
 
+#define NUMOFPUNCT 18
+
 /**
  * @brief キーワードの種類を表す列挙型
  * 
  */
-struct KEY
+static struct KEY
 {
   char * keyword;
   int keytoken;
 } key[KEYWORDSIZE];
 
-/* keyword list */
-struct KEY key[KEYWORDSIZE] = {
+/**
+ * @brief 予約語のリスト
+ * 
+ */
+static struct KEY key[KEYWORDSIZE] = {
   {"and", TAND},       {"array", TARRAY},         {"begin", TBEGIN},     {"boolean", TBOOLEAN},
   {"break", TBREAK},   {"call", TCALL},           {"char", TCHAR},       {"div", TDIV},
   {"do", TDO},         {"else", TELSE},           {"end", TEND},         {"false", TFALSE},
@@ -27,17 +30,26 @@ struct KEY key[KEYWORDSIZE] = {
   {"readln", TREADLN}, {"return", TRETURN},       {"then", TTHEN},       {"true", TTRUE},
   {"var", TVAR},       {"while", TWHILE},         {"write", TWRITE},     {"writeln", TWRITELN}};
 
-/* string of each token */
-char * token_str[NUMOFTOKEN + 1] = {
-  "",       "NAME",   "program",   "var",     "array",   "of",     "begin",   "end",  "if",
-  "then",   "else",   "procedure", "return",  "call",    "while",  "do",      "not",  "or",
-  "div",    "and",    "char",      "integer", "boolean", "readln", "writeln", "true", "false",
-  "NUMBER", "STRING", "+",         "-",       "*",       "=",      "<>",      "<",    "<=",
-  ">",      ">=",     "(",         ")",       "[",       "]",      ":=",      ".",    ",",
-  ":",      ";",      "read",      "write",   "break"};
+/**
+ * @brief 区切り文字のリスト
+ * 
+ */
 
+static struct KEY punct[PUNCTSIZE] = {
+  {":=", TASSIGN},  {"<>", TNOTEQ},   {">=", TGREQ}, {"<=", TLEEQ}, {"+", TPLUS},   {"-", TMINUS},
+  {"*", TSTAR},     {"=", TEQUAL},    {"<", TLE},    {">", TGR},    {"(", TLPAREN}, {")", TRPAREN},
+  {"[", TLSQPAREN}, {"]", TRSQPAREN}, {".", TDOT},   {",", TCOMMA}, {":", TCOLON},  {";", TSEMI}};
+
+/**
+ * @brief 現在のトークンの位置が行頭かどうかを表す変数
+ * 
+ */
 static bool at_bol;
 
+/**
+ * @brief 現在のトークンに空白が続くかを表す変数
+ * 
+ */
 static bool has_space;
 
 /**
@@ -45,6 +57,7 @@ static bool has_space;
  * 
  */
 static int num_attr;
+
 /**
  * @brief ひとかたまりの文字列トークンを一時的に格納する
  * 
@@ -131,26 +144,44 @@ static Token * newToken(TokenKind kind, int id, int len)
 
 /**
  * @brief keyword listに含まれていかをチェックする
- * 予約語が含まれていた場合、そのトークンの種類を返す
+ * 予約語が含まれていた場合、その予約語トークンを返す。もし含まれていなければ識別子トークンを返す
  * @return int
  */
-static void checkKeyword(Token * cur)
+static Token * checkKeyword(Token * cur)
 {
-  // printf("string_attr: %s\n", string_attr);
   for (int i = 0; i < KEYWORDSIZE; i++) {
     if (strcmp(string_attr, key[i].keyword) == 0) {
       cur = cur->next = newToken(TK_KEYWORD, key[i].keytoken, strlen(key[i].keyword));
+      return cur;
     }
   }
-  printf("string_attr: %s\n", string_attr);
   cur = cur->next = newToken(TK_IDENT, TNAME, strlen(string_attr));
+  cur->str = strdup(string_attr);
+  return cur;
 }
 
 /**
- * @brief scan()は、ファイルから1文字ずつ読み込んで、トークンを切り出す関数
- * pには1文字先読みした文字が格納されており、トークンの種類が決定するまでcbufを更新していく
+ * @brief 句読点が含まれているかをチェックする
+ * 句読点が含まれていた場合、そのトークンのIDを返す。もし含まれていなければ-1を返す
+ * @param p 
+ * @return int 
+ */
+static int checkPunct(char * p)
+{
+  for (int i = 0; i < PUNCTSIZE; i++) {
+    if (strncmp(p, punct[i].keyword, strlen(punct[i].keyword)) == 0) {
+      return punct[i].keytoken;
+    }
+  }
+  return -1;
+}
+
+/**
+ * @brief トークナイズする対象の文字列に字句解析を行い、トークンのリストを返す関数
+ * 
+ * @param p ファイル内の1文字を指すポインタ
+ * @param head トークンのリストの先頭
  * @return Token* 
- * @details トークンの種類を返す
  */
 static Token * scan(char * p, Token * head)
 {
@@ -167,6 +198,7 @@ static Token * scan(char * p, Token * head)
       case ' ':
       case '\t':
         p++;
+        has_space = true;
         continue;
       // 改行文字 (\n または \r)
       case '\n':
@@ -174,8 +206,9 @@ static Token * scan(char * p, Token * head)
         if ((*p == '\r' && *p++ == '\n') || (*p == '\n' && *p++ == '\r')) {
           p++;
         }
-        printf("line_num: %d\n", line_num);
         line_num++;
+        at_bol = true;
+        has_space = false;
         continue;
       // {}による注釈を読み飛ばす
       case '{':
@@ -187,8 +220,10 @@ static Token * scan(char * p, Token * head)
           }
         }
         p++;
+        has_space = true;
         continue;
       // /* */による注釈を読み飛ばす
+      // TODO: 関数化したい
       case '/':
         p++;
         if (*p == '*') {
@@ -205,6 +240,7 @@ static Token * scan(char * p, Token * head)
             }
           }
           p++;
+          has_space = true;
           continue;
         } else {
           fprintf(stderr, "Illegal character: %c\n at %d line.", *p, line_num);
@@ -215,22 +251,27 @@ static Token * scan(char * p, Token * head)
 
     if (isalpha(*p)) {
       // 名前の読み込み
+      // TODO: 関数化したい
       int i = 0;
       do {
         string_attr[i++] = *p;
         if (i < MAXSTRSIZE - 1)
           string_attr[i] = '\0';
         else {
-          fprintf(stderr, "Too long string at %d line.", line_num);
+          error("Too long string at %d line.", line_num);
           cur = cur->next = newToken(TK_EOF, 0, 0);
           return head->next;
         }
         p++;
       } while (isalnum(*p));
-      checkKeyword(cur);
+      cur = checkKeyword(cur);
+      int id = cur->id;
+      if (id == TPROCEDURE || id == TVAR || id == TBEGIN || id == TEND || id == TELSE || id == TDO)
+        cur->at_bol = true;
       continue;
     } else if (isdigit(*p)) {
       // 数字の読み込み
+      // TODO: 関数化したい
       int len = 0;
       num_attr = 0;
       do {
@@ -247,6 +288,7 @@ static Token * scan(char * p, Token * head)
       cur->num = num_attr;
     } else if (*p == '\'') {
       // 'で囲まれた文字列の読み込み
+      // TODO: 関数化したい
       int str_len = 0;
       p++;  // 最初の'を読み飛ばす
       for (;;) {
@@ -273,96 +315,22 @@ static Token * scan(char * p, Token * head)
       }
       string_attr[str_len] = '\0';
       cur = cur->next = newToken(TK_STR, TSTRING, str_len);
-      cur->str = string_attr;
-      printf("string_attr: %s\n", string_attr);
+      cur->str = strdup(string_attr);
     } else {
-      // 1文字のトークン
-      switch (*p) {
-        case '+':
-          p++;
-          cur = cur->next = newToken(TK_PUNCT, TPLUS, 1);
-          break;
-        case '-':
-          p++;
-          cur = cur->next = newToken(TK_PUNCT, TMINUS, 1);
-          break;
-        case '*':
-          p++;
-          cur = cur->next = newToken(TK_PUNCT, TSTAR, 1);
-          break;
-        case '=':
-          p++;
-          cur = cur->next = newToken(TK_PUNCT, TEQUAL, 1);
-          break;
-        case '(':
-          p++;
-          cur = cur->next = newToken(TK_PUNCT, TLPAREN, 1);
-          break;
-        case ')':
-          p++;
-          cur = cur->next = newToken(TK_PUNCT, TRPAREN, 1);
-          break;
-        case '[':
-          p++;
-          cur = cur->next = newToken(TK_PUNCT, TLSQPAREN, 1);
-          break;
-        case ']':
-          p++;
-          cur = cur->next = newToken(TK_PUNCT, TRSQPAREN, 1);
-          break;
-        case '.':
-          p++;
-          cur = cur->next = newToken(TK_PUNCT, TDOT, 1);
-          break;
-        case ',':
-          p++;
-          cur = cur->next = newToken(TK_PUNCT, TCOMMA, 1);
-          break;
-        case ';':
-          p++;
-          cur = cur->next = newToken(TK_PUNCT, TSEMI, 1);
-          break;
-        case '<':
-          p++;
-          if (*p == '=') {
-            p++;
-            cur = cur->next = newToken(TK_PUNCT, TLEEQ, 2);
-            break;
-          } else if (*p == '>') {
-            p++;
-            cur = cur->next = newToken(TK_PUNCT, TNOTEQ, 2);
-            break;
-          } else {
-            cur = cur->next = newToken(TK_PUNCT, TLE, 1);
-            break;
-          }
-        case '>':
-          p++;
-          if (*p == '=') {
-            p++;
-            cur = cur->next = newToken(TK_PUNCT, TGREQ, 2);
-            break;
-          } else {
-            cur = cur->next = newToken(TK_PUNCT, TGR, 1);
-            break;
-          }
-
-        case ':':
-          p++;
-          if (*p == '=') {
-            p++;
-            cur = cur->next = newToken(TK_PUNCT, TASSIGN, 2);
-            break;
-          } else {
-            cur = cur->next = newToken(TK_PUNCT, TCOLON, 1);
-            break;
-          }
-        default:
-          printf("Illegal character: %c\n", *p);
-          printf("line: %d\n", line_num);
-          p++;
-          cur = cur->next = newToken(TK_EOF, 0, 0);
-          return head->next;
+      // その他の記号
+      // TODO: 関数化したい
+      int punct_id = checkPunct(p);
+      if (punct_id != -1) {
+        const char * token_str[NUMOFPUNCT + 1] = {"",   "+", "-",  "*", "=", "<>", "<",
+                                                  "<=", ">", ">=", "(", ")", "[",  "]",
+                                                  ":=", ".", ",",  ":", ";"};
+        cur = cur->next = newToken(TK_PUNCT, punct_id, strlen(token_str[punct_id - 28]));
+        if (cur->id == TSEMI || cur->id == TDOT || cur->id == TCOMMA) cur->has_space = false;
+        p += strlen(token_str[punct_id - 28]);
+      } else {
+        fprintf(stderr, "Illegal character: %c\n at %d line.", *p, line_num);
+        cur = cur->next = newToken(TK_EOF, 0, 0);
+        return head->next;
       }
     }
   }
@@ -370,12 +338,16 @@ static Token * scan(char * p, Token * head)
   return head->next;
 }
 
+/**
+ * @brief トークンのリストを返す関数
+ * トークンのリストは単方向の連結リストで表現される
+ * @param p 
+ * @return Token* 
+ */
 Token * tokenize(char * p)
 {
   Token head = {};
   head.next = scan(p, &head);
-  printf("head.next->kind: %d\n", head.next->kind);
-  printf("head.next->next->kind: %d\n", head.next->next->kind);
   return head.next;
 }
 
@@ -393,3 +365,5 @@ Token * tokenizeFile(char * path)
 
   return tokenize(p);
 }
+
+int get_linenum() { return line_num; }
