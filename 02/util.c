@@ -12,5 +12,5 @@ int error(char * fmt, ...)
   va_start(ap, fmt);
   vfprintf(stderr, fmt, ap);
   fprintf(stderr, "\n");
-  return 1;
+  return ERROR;
 }

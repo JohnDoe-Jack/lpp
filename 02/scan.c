@@ -328,7 +328,7 @@ static Token * scan(char * p, Token * head)
         if (cur->id == TSEMI || cur->id == TDOT || cur->id == TCOMMA) cur->has_space = false;
         p += strlen(token_str[punct_id - 28]);
       } else {
-        fprintf(stderr, "Illegal character: %c\n at %d line.", *p, line_num);
+        fprintf(stderr, "\nIllegal character: %c\n at %d line.\n", *p, line_num);
         cur = cur->next = newToken(TK_EOF, 0, 0);
         return head->next;
       }

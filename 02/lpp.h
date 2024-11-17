@@ -75,6 +75,9 @@ typedef enum {
 #define PUNCTSIZE 18
 #define S_ERROR -1
 
+#define ERROR 1
+#define NORMAL 0
+
 /**
  * @brief トークンの種類を表す列挙型
  * 
