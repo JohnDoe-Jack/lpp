@@ -152,8 +152,7 @@ static int parseType()
     consumeToken(cur);
     if (cur->id != TOF) return error("\nError at %d: Expected 'of'", cur->line_no);
     consumeToken(cur);
-    if (cur->id == TINTEGER || cur->id == TBOOLEAN || cur->id == TCHAR)
-      return error("\nError at %d: Expected type", cur->line_no);
+    if (isStdType()) return error("\nError at %d: Expected type", cur->line_no);
     consumeToken(cur);
   } else {
     return error("\nError at %d: Expected type", cur->line_no);
@@ -256,24 +255,154 @@ static int parseFactor()
   return NORMAL;
 }
 
+static int parseAssignment()
+{
+  if (parseVarNames() == ERROR) return ERROR;
+
+  if (cur->id != TASSIGN) return error("\nError at %d: Expected ':='", cur->line_no);
+  consumeToken(cur);
+  if (parseExpression() == ERROR) return ERROR;
+  return NORMAL;
+}
+
+static int parseCondition()
+{
+  if (cur->id != TIF) return error("\nError at %d: Expected 'if'", cur->line_no);
+  consumeToken(cur);
+  if (parseExpression() == ERROR) return ERROR;
+  if (cur->id != TTHEN) return error("\nError at %d: Expected 'then'", cur->line_no);
+  consumeToken(cur);
+  if (parseStatement() == ERROR) return ERROR;
+  if (cur->id == TELSE) {
+    consumeToken(cur);
+    if (parseStatement() == ERROR) return ERROR;
+  }
+  return NORMAL;
+}
+
+static int parseIteration()
+{
+  if (cur->id != TWHILE) return error("\nError at %d: Expected 'while'", cur->line_no);
+  consumeToken(cur);
+  if (parseExpression() == ERROR) return ERROR;
+  if (cur->id != TDO) return error("\nError at %d: Expected 'do'", cur->line_no);
+  consumeToken(cur);
+  iteration_level++;
+  if (parseStatement() == ERROR) return ERROR;
+  iteration_level--;
+  return NORMAL;
+}
+
+static int parseCall()
+{
+  if (cur->id != TCALL) return error("\nError at %d: Expected 'call'", cur->line_no);
+  consumeToken(cur);
+  if (cur->id != TNAME) return error("\nError at %d: Expected procedure name", cur->line_no);
+  consumeToken(cur);
+  if (cur->id == TLPAREN) {
+    consumeToken(cur);
+    // 式の並び
+    if (parseExpression() == ERROR) return ERROR;
+    while (cur->id == TCOMMA) {
+      consumeToken(cur);
+      if (parseExpression() == ERROR) return ERROR;
+    }
+    if (cur->id != TRPAREN) return error("\nError at %d: Expected ')'", cur->line_no);
+    consumeToken(cur);
+  }
+  return NORMAL;
+}
+
+static int parseVar()
+{
+  if (cur->id != TNAME) return error("\nError at %d: Expected variable name", cur->line_no);
+  consumeToken(cur);
+  if (cur->id == TLSQPAREN) {
+    consumeToken(cur);
+    if (parseExpression() == ERROR) return ERROR;
+    if (cur->id != TRSQPAREN) return error("\nError at %d: Expected ']'", cur->line_no);
+    consumeToken(cur);
+  }
+  return NORMAL;
+}
+
+static int parseInput()
+{
+  if (cur->id != TREAD && cur->id != TREADLN)
+    return error("\nError at %d: Expected 'read' or 'readln'", cur->line_no);
+  consumeToken(cur);
+  if (cur->id == TLPAREN) {
+    consumeToken(cur);
+    if (parseVar() == ERROR) return ERROR;
+    while (cur->id == TCOMMA) {
+      consumeToken(cur);
+      if (parseVar() == ERROR) return ERROR;
+    }
+    if (cur->id != TRPAREN) return error("\nError at %d: Expected ')'", cur->line_no);
+    consumeToken(cur);
+  }
+  return NORMAL;
+}
+
+static int parseOutputFormat() { return NORMAL; }
+
+static int parseOutputStatement()
+{
+  if (cur->id != TWRITE && cur->id != TWRITELN)
+    return error("\nError at %d: Expected 'write' or 'writeln'", cur->line_no);
+  consumeToken(cur);
+
+  if (cur->id != TLPAREN) return NORMAL;
+  consumeToken(cur);
+  if (parseOutputFormat() == ERROR) return ERROR;
+  while (cur->id == TCOMMA) {
+    consumeToken(cur);
+    if (parseOutputFormat() == ERROR) return ERROR;
+  }
+  if (cur->id != TRPAREN) return error("\nError at %d: Expected ')'", cur->line_no);
+  consumeToken(cur);
+
+  return NORMAL;
+}
+
 static int parseStatement()
 {
   switch (cur->id) {
+    // 代入文
     case TNAME:
-      consumeToken(cur);
-      if (cur->id == TLSQPAREN) {
-        consumeToken(cur);
-        if (parseSimpleExpression() == ERROR) return ERROR;
-        if (cur->id != TRSQPAREN) return error("\nError at %d: Expected ']'", cur->line_no);
-        consumeToken(cur);
-      }
+      if (parseAssignment() == ERROR) return ERROR;
+      break;
+    // 分岐文
+    case TIF:
+      if (parseCondition() == ERROR) return ERROR;
+      break;
+    // 繰り返し文
+    case TWHILE:
+      if (parseIteration() == ERROR) return ERROR;
+      break;
+    // 脱出文
     case TBREAK:
       if (iteration_level == 0)
         return error("\nError at %d: 'break' statement not within loop", cur->line_no);
       consumeToken(cur);
       break;
-    default:
-      return error("\nError at %d: Expected statement", cur->line_no);
+    // 手続き呼び出し文
+    case TCALL:
+      if (parseCall() == ERROR) return ERROR;
+      break;
+    // 戻り文
+    case TRETURN:
+      consumeToken(cur);
+      break;
+    // 入力文
+    case TREAD:
+    case TREADLN:
+      if (parseInput() == ERROR) return ERROR;
+      break;
+    // 出力文
+    case TWRITE:
+    case TWRITELN:
+      if (parseOutputStatement() == ERROR) return ERROR;
   }
   return NORMAL;
 }
