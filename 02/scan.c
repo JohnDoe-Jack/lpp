@@ -266,7 +266,7 @@ static Token * scan(char * p, Token * head)
       } while (isalnum(*p));
       cur = checkKeyword(cur);
       int id = cur->id;
-      if (id == TPROCEDURE || id == TVAR || id == TBEGIN || id == TEND || id == TELSE || id == TDO)
+      if (id == TPROCEDURE || id == TVAR || id == TBEGIN || id == TEND || id == TELSE)
         cur->at_bol = true;
       continue;
     } else if (isdigit(*p)) {
@@ -325,7 +325,13 @@ static Token * scan(char * p, Token * head)
                                                   "<=", ">", ">=", "(", ")", "[",  "]",
                                                   ":=", ".", ",",  ":", ";"};
         cur = cur->next = newToken(TK_PUNCT, punct_id, strlen(token_str[punct_id - 28]));
-        if (cur->id == TSEMI || cur->id == TDOT || cur->id == TCOMMA) cur->has_space = false;
+        if (
+          cur->id == TSEMI || cur->id == TDOT || cur->id == TCOMMA || cur->id == TLSQPAREN ||
+          cur->id == TRSQPAREN)
+          cur->has_space = false;
+        else
+          cur->has_space = true;
+
         p += strlen(token_str[punct_id - 28]);
       } else {
         fprintf(stderr, "\nIllegal character: %c\n at %d line.\n", *p, line_num);
