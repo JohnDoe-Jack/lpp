@@ -121,6 +121,5 @@ struct Token
 
 int error(char *, ...);
 Token * tokenizeFile(char *);
-int get_linenum();
 void parse(Token *);
 #endif

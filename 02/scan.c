@@ -157,6 +157,7 @@ static Token * checkKeyword(Token * cur)
   }
   cur = cur->next = newToken(TK_IDENT, TNAME, strlen(string_attr));
   cur->str = strdup(string_attr);
+  cur->has_space = true;
   return cur;
 }
 
@@ -186,7 +187,7 @@ static int checkPunct(char * p)
 static Token * scan(char * p, Token * head)
 {
   Token * cur = head;
-  at_bol = true;
+  at_bol = false;
   has_space = false;
   for (;;) {
     if (*p == '\0') {
@@ -207,19 +208,16 @@ static Token * scan(char * p, Token * head)
           p++;
         }
         line_num++;
-        at_bol = true;
         has_space = false;
         continue;
       // {}による注釈を読み飛ばす
       case '{':
         while (*(p++) != '}') {
           if (*p == '\0') {
-            error("Expected '}' at end of line (fix available)", line_num);
             cur = cur->next = newToken(TK_EOF, 0, 0);
             return head->next;
           }
         }
-        p++;
         has_space = true;
         continue;
       // /* */による注釈を読み飛ばす
@@ -266,16 +264,23 @@ static Token * scan(char * p, Token * head)
       } while (isalnum(*p));
       cur = checkKeyword(cur);
       int id = cur->id;
-      if (id == TPROCEDURE || id == TVAR || id == TBEGIN || id == TEND || id == TELSE)
+      if (
+        id == TPROGRAM || id == TPROCEDURE || id == TVAR || id == TBEGIN || id == TEND ||
+        id == TELSE || id == TIF) {
         cur->at_bol = true;
+        cur->has_space = false;
+      } else if (id == TINTEGER || id == TBOOLEAN || id == TCHAR || id == TTRUE || id == TFALSE) {
+        cur->has_space = true;
+      }
+
       continue;
     } else if (isdigit(*p)) {
       // 数字の読み込み
       // TODO: 関数化したい
-      int len = 0;
+      int num_len = 0;
       num_attr = 0;
       do {
-        len++;
+        string_attr[num_len++] = *p;
         num_attr = num_attr * 10 + (*p - '0');
         if (num_attr > MAXNUM) {
           error("Too big number.", line_num);
@@ -284,12 +289,17 @@ static Token * scan(char * p, Token * head)
         }
         p++;
       } while (isdigit(*p));
-      cur = cur->next = newToken(TK_NUM, TNUMBER, len);
+      string_attr[num_len] = '\0';
+      cur = cur->next = newToken(TK_NUM, TNUMBER, num_len);
       cur->num = num_attr;
+      cur->str = strdup(string_attr);
+
+      cur->has_space = true;
     } else if (*p == '\'') {
       // 'で囲まれた文字列の読み込み
       // TODO: 関数化したい
       int str_len = 0;
+      int apostrophe_count = 0;
       p++;  // 最初の'を読み飛ばす
       for (;;) {
         if (str_len >= MAXSTRSIZE - 1) {
@@ -304,6 +314,8 @@ static Token * scan(char * p, Token * head)
         if (*p == '\'') {
           p++;
           if (*p != '\'') break;
+          string_attr[str_len++] = *p;
+          apostrophe_count++;
         }
         string_attr[str_len++] = *p;
         p++;
@@ -314,8 +326,9 @@ static Token * scan(char * p, Token * head)
         return head->next;
       }
       string_attr[str_len] = '\0';
-      cur = cur->next = newToken(TK_STR, TSTRING, str_len);
+      cur = cur->next = newToken(TK_STR, TSTRING, str_len - apostrophe_count);
       cur->str = strdup(string_attr);
+      cur->has_space = true;
     } else {
       // その他の記号
       // TODO: 関数化したい
@@ -325,9 +338,7 @@ static Token * scan(char * p, Token * head)
                                                   "<=", ">", ">=", "(", ")", "[",  "]",
                                                   ":=", ".", ",",  ":", ";"};
         cur = cur->next = newToken(TK_PUNCT, punct_id, strlen(token_str[punct_id - 28]));
-        if (
-          cur->id == TSEMI || cur->id == TDOT || cur->id == TCOMMA || cur->id == TLSQPAREN ||
-          cur->id == TRSQPAREN)
+        if (cur->id == TSEMI || cur->id == TDOT)
           cur->has_space = false;
         else
           cur->has_space = true;
@@ -371,5 +382,3 @@ Token * tokenizeFile(char * path)
 
   return tokenize(p);
 }
-
-int get_linenum() { return line_num; }

@@ -16,8 +16,6 @@ static int indent_level = 0;
  */
 static bool at_bol = false;
 
-static bool has_space = false;
-
 /**
  * @brief 現在のトークンを指すグローバルな変数
  * 
@@ -63,6 +61,10 @@ static int parseOutputStatement();
 
 static void printIndent()
 {
+  if (indent_level < 0) {
+    error("Line %d: Indent level is negative", cur->line_no);
+    exit(1);
+  }
   for (int i = 0; i < indent_level; i++) {
     printf("    ");
   }
@@ -70,8 +72,8 @@ static void printIndent()
 
 static void printToken(const Token * tok)
 {
-  if (tok->has_space || has_space) printf(" ");
-  if (tok->at_bol || at_bol) {
+  if (!at_bol && !tok->at_bol && tok->has_space) printf(" ");
+  if ((tok->at_bol || at_bol) && tok->id != TPROGRAM) {
     printf("\n");
     printIndent();
   }
@@ -79,7 +81,7 @@ static void printToken(const Token * tok)
   if (tok->kind == TK_KEYWORD || tok->kind == TK_PUNCT) {
     printf("%s", token_str[cur->id]);
   } else if (cur->kind == TK_NUM) {
-    printf("%d", cur->num);
+    printf("%s", cur->str);
   } else if (cur->kind == TK_STR) {
     printf("'%s'", cur->str);
   } else {
@@ -87,7 +89,6 @@ static void printToken(const Token * tok)
   }
   fflush(stdout);
   at_bol = false;
-  has_space = false;
 }
 
 static void consumeToken(Token * tok)
@@ -117,7 +118,6 @@ static bool isMulOp()
     case TSTAR:
     case TDIV:
     case TAND:
-      consumeToken(cur);
       return true;
     default:
       return false;
@@ -152,6 +152,7 @@ static int parseType()
 {
   if (isStdType()) {
     consumeToken(cur);
+
   } else if (cur->id == TARRAY) {
     consumeToken(cur);
     if (cur->id != TLSQPAREN) return error("\nError at %d: Expected '['", cur->line_no);
@@ -162,11 +163,14 @@ static int parseType()
     consumeToken(cur);
     if (cur->id != TOF) return error("\nError at %d: Expected 'of'", cur->line_no);
     consumeToken(cur);
-    if (isStdType()) return error("\nError at %d: Expected type", cur->line_no);
+
+    if (!isStdType()) return error("\nError at %d: Expected type", cur->line_no);
     consumeToken(cur);
+
   } else {
     return error("\nError at %d: Expected type", cur->line_no);
   }
+
   return NORMAL;
 }
 
@@ -200,7 +204,10 @@ static int parseVarDeclaration()
   if (cur->id != TSEMI) return error("\nError at %d: Expected ';'", cur->line_no);
   consumeToken(cur);
 
-  while (parseVarNames() == NORMAL) {
+  while (cur->id == TNAME) {
+    at_bol = true;
+    if (parseVarNames() == ERROR)
+      return error("\nError at %d: Expected variable name", cur->line_no);
     if (cur->id != TCOLON) return error("\nError at %d: Expected ':'", cur->line_no);
     consumeToken(cur);
 
@@ -217,6 +224,7 @@ static int parseVarDeclaration()
 static int parseTerm()
 {
   if (parseFactor() == ERROR) return ERROR;
+
   while (isMulOp()) {
     consumeToken(cur);
     if (parseFactor() == ERROR) return ERROR;
@@ -264,7 +272,6 @@ static int parseFactor()
       break;
     case TLPAREN:
       consumeToken(cur);
-      has_space = true;
       if (parseExpression() == ERROR) return ERROR;
       if (cur->id != TRPAREN) return error("\nError at %d: Expected ')'", cur->line_no);
       consumeToken(cur);
@@ -310,16 +317,18 @@ static int parseCondition()
   if (cur->id != TTHEN) return error("\nError at %d: Expected 'then'", cur->line_no);
   consumeToken(cur);
   at_bol = true;
-  indent_level++;
+  bool is_begin = cur->id == TBEGIN;
+  if (!is_begin) indent_level++;
   if (parseStatement() == ERROR) return ERROR;
+  if (!is_begin) indent_level--;
   if (cur->id == TELSE) {
-    indent_level--;
     consumeToken(cur);
     at_bol = true;
-    if (cur->id != TBEGIN) indent_level++;
+    is_begin = cur->id == TBEGIN;
+    if (!is_begin) indent_level++;
 
     if (parseStatement() == ERROR) return ERROR;
-    indent_level--;
+    if (!is_begin) indent_level--;
   }
   return NORMAL;
 }
@@ -333,7 +342,6 @@ static int parseIteration()
   consumeToken(cur);
   iteration_level++;
   if (parseStatement() == ERROR) return ERROR;
-  iteration_level--;
   return NORMAL;
 }
 
@@ -378,7 +386,6 @@ static int parseInput()
   consumeToken(cur);
   if (cur->id == TLPAREN) {
     consumeToken(cur);
-    has_space = true;
     if (parseVar() == ERROR) return ERROR;
     while (cur->id == TCOMMA) {
       consumeToken(cur);
@@ -392,11 +399,15 @@ static int parseInput()
 
 static int parseOutputFormat()
 {
-  if (cur->id == TSTRING && strlen(cur->str) != 1) {
+  if (cur->id == TSTRING && cur->len != 1) {
     consumeToken(cur);
-  } else if (parseExpression() == ERROR) {
+  } else if (parseExpression() != ERROR) {
+    if (cur->id != TCOLON) return NORMAL;
+    consumeToken(cur);
+    if (cur->id != TNUMBER) return error("\nError at %d: Expected number", cur->line_no);
+    consumeToken(cur);
+  } else
     return ERROR;
-  }
   return NORMAL;
 }
 
@@ -408,8 +419,8 @@ static int parseOutputStatement()
 
   if (cur->id != TLPAREN) return NORMAL;
   consumeToken(cur);
-  has_space = true;
   if (parseOutputFormat() == ERROR) return ERROR;
+
   while (cur->id == TCOMMA) {
     consumeToken(cur);
     if (parseOutputFormat() == ERROR) return ERROR;
@@ -462,10 +473,11 @@ static int parseStatement()
     case TBEGIN:
       indent_level++;
       if (parseCompoundStatement() == ERROR) return ERROR;
+      indent_level--;
       break;
 
     default:
-      // return error("\nError at %d: Expected statement", cur->line_no);
+      // 空文
       break;
   }
   return NORMAL;
@@ -477,16 +489,18 @@ static int parseCompoundStatement()
 
   consumeToken(cur);
   indent_level++;
+  at_bol = true;
+
   if (parseStatement() == ERROR) return ERROR;
   while (cur->id == TSEMI) {
     consumeToken(cur);
+    at_bol = true;
     if (parseStatement() == ERROR) return ERROR;
   }
-  printf("cur->id: %d", cur->id);
   if (cur->id != TEND) return error("\nError at %d: Expected 'end'", cur->line_no);
   indent_level--;
   consumeToken(cur);
-  indent_level--;
+
   return NORMAL;
 }
 
@@ -494,19 +508,26 @@ static int parseFormalParamters()
 {
   if (cur->id != TLPAREN) return error("\nError at %d: Expected '('", cur->line_no);
   consumeToken(cur);
-  has_space = true;
+
   if (parseVarNames()) return error("\nError at %d: Expected variable name", cur->line_no);
+
   if (cur->id != TCOLON) return error("\nError at %d: Expected ':'", cur->line_no);
   consumeToken(cur);
+
   if (parseType()) return error("\nError at %d: Expected type", cur->line_no);
+
   while (cur->id == TSEMI) {
     consumeToken(cur);
     if (parseVarNames()) return error("\nError at %d: Expected variable name", cur->line_no);
+
     if (cur->id != TCOLON) return error("\nError at %d: Expected ':'", cur->line_no);
     consumeToken(cur);
+
     if (parseType()) return error("\nError at %d: Expected type", cur->line_no);
   }
+
   if (cur->id != TRPAREN) return error("\nError at %d: Expected ')'", cur->line_no);
+  consumeToken(cur);
 
   return NORMAL;
 }
@@ -514,7 +535,7 @@ static int parseFormalParamters()
 static int parseSubProgram()
 {
   if (cur->id != TPROCEDURE) return error("\nError at %d: Expected 'procedure'", cur->line_no);
-  indent_level++;
+  indent_level = 1;
   consumeToken(cur);
   if (cur->id != TNAME) return error("\nError at %d: Expected procedure name", cur->line_no);
   consumeToken(cur);
@@ -525,12 +546,13 @@ static int parseSubProgram()
   consumeToken(cur);
 
   if (cur->id == TVAR)
-    if (parseVar() == ERROR) return ERROR;
+    if (parseVarDeclaration() == ERROR) return ERROR;
 
   if (parseCompoundStatement() == ERROR) return ERROR;
 
   if (cur->id != TSEMI) return error("\nError at %d: Expected ';'", cur->line_no);
   consumeToken(cur);
+  indent_level--;
   return NORMAL;
 }
 
@@ -538,6 +560,9 @@ static int parseBlock()
 {
   for (;;) {
     if (cur->id == TVAR) {
+      // 変数宣言部は行頭から1段落付けされる。
+      // parseVarDeclaration内でインクリメントされるので0にして辻褄を合わせる。
+      indent_level = 0;
       if (parseVarDeclaration() == ERROR) return ERROR;
     } else if (cur->id == TPROCEDURE) {
       if (parseSubProgram() == ERROR) return ERROR;
@@ -572,5 +597,11 @@ static int parseProgram()
 void parse(Token * tok)
 {
   cur = tok;
+  // while (tok != NULL) {
+  //   printf(
+  //     "kind: %d, id: %d, len: %d, line_no: %d, str: %s, num: %d, at_bol: %d, has_space: %d\n",
+  //     tok->kind, tok->id, tok->len, tok->line_no, tok->str, tok->num, tok->at_bol, tok->has_space);
+  //   tok = tok->next;
+  // }
   parseProgram();
 }

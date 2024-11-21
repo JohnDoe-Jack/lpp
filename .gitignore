@@ -6,3 +6,4 @@ build
 *.gcov
 tc
 .vscode
+test_results
