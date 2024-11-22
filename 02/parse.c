@@ -597,11 +597,5 @@ static int parseProgram()
 void parse(Token * tok)
 {
   cur = tok;
-  // while (tok != NULL) {
-  //   printf(
-  //     "kind: %d, id: %d, len: %d, line_no: %d, str: %s, num: %d, at_bol: %d, has_space: %d\n",
-  //     tok->kind, tok->id, tok->len, tok->line_no, tok->str, tok->num, tok->at_bol, tok->has_space);
-  //   tok = tok->next;
-  // }
   parseProgram();
 }
