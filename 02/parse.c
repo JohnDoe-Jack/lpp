@@ -59,6 +59,11 @@ static int parseInput();
 static int parseOutputFormat();
 static int parseOutputStatement();
 
+/**
+ * @brief indent_levelに応じて段付を行う
+ * もしindent_levelが負の値になった時は異常と見なしてプログラムを終了させる
+ * 
+ */
 static void printIndent()
 {
   if (indent_level < 0) {
@@ -70,6 +75,12 @@ static void printIndent()
   }
 }
 
+/**
+ * @brief トークンの種類に応じてプリティプリントのやり方を変える
+ * もしトークンのhas_spaceフラグがtrueかつトークンの位置が行頭以外であったとき
+ * 半角の空白をトークンの前に挟む
+ * @param tok 
+ */
 static void printToken(const Token * tok)
 {
   if (!at_bol && !tok->at_bol && tok->has_space) printf(" ");
@@ -91,12 +102,23 @@ static void printToken(const Token * tok)
   at_bol = false;
 }
 
+/**
+ * @brief トークンを標準出力して現在注目しているトークンの位置を一つ進める
+ * 
+ * @param tok 
+ */
 static void consumeToken(Token * tok)
 {
   printToken(tok);
   cur = cur->next;
 }
 
+/**
+ * @brief もし現在注目しているトークンが関係演算子であった場合trueを返す
+ * 
+ * @return true 
+ * @return false 
+ */
 static bool isparseRelOp()
 {
   switch (cur->id) {
@@ -112,6 +134,12 @@ static bool isparseRelOp()
   }
 }
 
+/**
+ * @brief もし現在注目しているトークンが乗法演算子であった場合trueを返す
+ * 
+ * @return true 
+ * @return false 
+ */
 static bool isMulOp()
 {
   switch (cur->id) {
@@ -124,6 +152,12 @@ static bool isMulOp()
   }
 }
 
+/**
+ * @brief もし現在注目しているトークンが加法演算子であった場合trueを返す
+ * 
+ * @return true 
+ * @return false 
+ */
 static bool isAddOp()
 {
   switch (cur->id) {
@@ -136,6 +170,12 @@ static bool isAddOp()
   }
 }
 
+/**
+ * @brief もし現在注目しているトークンが標準型であった場合trueを返す
+ * 
+ * @return true 
+ * @return false 
+ */
 static bool isStdType()
 {
   switch (cur->id) {
@@ -148,11 +188,15 @@ static bool isStdType()
   }
 }
 
+/**
+ * @brief 型であるかを確かめる
+ * 
+ * @return int 
+ */
 static int parseType()
 {
   if (isStdType()) {
     consumeToken(cur);
-
   } else if (cur->id == TARRAY) {
     consumeToken(cur);
     if (cur->id != TLSQPAREN) return error("\nError at %d: Expected '['", cur->line_no);
@@ -174,6 +218,11 @@ static int parseType()
   return NORMAL;
 }
 
+/**
+ * @brief 変数名の並びであるかを確かめる
+ * 
+ * @return int 
+ */
 static int parseVarNames()
 {
   if (cur->id != TNAME) return ERROR;
@@ -187,6 +236,11 @@ static int parseVarNames()
   return NORMAL;
 }
 
+/**
+ * @brief 変数宣言部であるかを確かめる
+ * 
+ * @return int 
+ */
 static int parseVarDeclaration()
 {
   if (cur->id != TVAR) return error("\nError at %d: Expected 'var'", cur->line_no);
@@ -221,6 +275,11 @@ static int parseVarDeclaration()
   return NORMAL;
 }
 
+/**
+ * @brief 項であるかを確かめる
+ * 
+ * @return int 
+ */
 static int parseTerm()
 {
   if (parseFactor() == ERROR) return ERROR;
@@ -232,6 +291,11 @@ static int parseTerm()
   return NORMAL;
 }
 
+/**
+ * @brief 単純式であるかを確かめる
+ * 
+ * @return int 
+ */
 static int parseSimpleExpression()
 {
   if (cur->id == TPLUS || cur->id == TMINUS) consumeToken(cur);
@@ -245,6 +309,11 @@ static int parseSimpleExpression()
   return NORMAL;
 }
 
+/**
+ * @brief 式であるかを確かめる
+ * 
+ * @return int 
+ */
 static int parseExpression()
 {
   if (parseSimpleExpression() == ERROR) return ERROR;
@@ -256,6 +325,11 @@ static int parseExpression()
   return NORMAL;
 }
 
+/**
+ * @brief 因子であるかを確かめる
+ * 
+ * @return int 
+ */
 static int parseFactor()
 {
   switch (cur->id) {
@@ -292,7 +366,7 @@ static int parseFactor()
       consumeToken(cur);
       break;
     default:
-      // return error("\nError at %d: Expected factor", cur->line_no);
+      return error("\nError at %d: Expected factor", cur->line_no);
       break;
   }
   return NORMAL;
@@ -597,5 +671,5 @@ static int parseProgram()
 void parse(Token * tok)
 {
   cur = tok;
-  parseProgram();
+  if (parseProgram() == ERROR) error("Parser aborted with error.");
 }

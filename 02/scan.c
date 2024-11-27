@@ -283,7 +283,7 @@ static Token * scan(char * p, Token * head)
         string_attr[num_len++] = *p;
         num_attr = num_attr * 10 + (*p - '0');
         if (num_attr > MAXNUM) {
-          error("Too big number.", line_num);
+          error("Error at %d: Number must not be larger than 32767.", line_num);
           cur = cur->next = newToken(TK_EOF, 0, 0);
           return head->next;
         }
