@@ -177,6 +177,20 @@ static int checkPunct(char * p)
   return -1;
 }
 
+static char * checkLinenum(char * p)
+{
+  if (*p == '\n') {
+    p++;
+    if (*p == '\r') p++;
+    line_num++;
+  } else if (*p == '\r') {
+    p++;
+    if (*p == '\n') p++;
+    line_num++;
+  }
+  return p;
+}
+
 /**
  * @brief トークナイズする対象の文字列に字句解析を行い、トークンのリストを返す関数
  * 
@@ -204,15 +218,13 @@ static Token * scan(char * p, Token * head)
       // 改行文字 (\n または \r)
       case '\n':
       case '\r':
-        if ((*p == '\r' && *p++ == '\n') || (*p == '\n' && *p++ == '\r')) {
-          p++;
-        }
-        line_num++;
+        p = checkLinenum(p);
         has_space = false;
         continue;
       // {}による注釈を読み飛ばす
       case '{':
         while (*(p++) != '}') {
+          p = checkLinenum(p);
           if (*p == '\0') {
             cur = cur->next = newToken(TK_EOF, 0, 0);
             return head->next;
@@ -228,6 +240,7 @@ static Token * scan(char * p, Token * head)
           // */が出るまで読み飛ばす
           while (1) {
             while (*(p++) != '*') {
+              p = checkLinenum(p);
               if (*p == '\0') {
                 cur = cur->next = newToken(TK_EOF, 0, 0);
                 return head->next;
