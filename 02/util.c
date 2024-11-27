@@ -6,7 +6,6 @@
  * @brief エラーメッセージを表示する
  * 
  * @param fmt エラーメッセージ
- * @param line_num 行番号
  */
 int error(char * fmt, ...)
 {

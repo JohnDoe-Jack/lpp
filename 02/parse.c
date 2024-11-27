@@ -26,6 +26,11 @@ static Token * cur;
  * 
  */
 static int iteration_level = 0;
+
+/**
+ * @brief トークンの種類を表す文字列の配列
+ * 
+ */
 static const char * token_str[NUMOFTOKEN + 1] = {
   "",       "NAME",   "program",   "var",     "array",   "of",     "begin",   "end",  "if",
   "then",   "else",   "procedure", "return",  "call",    "while",  "do",      "not",  "or",
@@ -372,6 +377,11 @@ static int parseFactor()
   return NORMAL;
 }
 
+/**
+ * @brief 代入文であるかを確かめる
+ * 
+ * @return int 
+ */
 static int parseAssignment()
 {
   if (parseVar() == ERROR) return ERROR;
@@ -383,6 +393,11 @@ static int parseAssignment()
   return NORMAL;
 }
 
+/**
+ * @brief 条件文であるかを確かめる
+ * 
+ * @return int 
+ */
 static int parseCondition()
 {
   if (cur->id != TIF) return error("\nError at %d: Expected 'if'", cur->line_no);
@@ -407,6 +422,11 @@ static int parseCondition()
   return NORMAL;
 }
 
+/**
+ * @brief 繰り返し文であるかを確かめる
+ * 
+ * @return int 
+ */
 static int parseIteration()
 {
   if (cur->id != TWHILE) return error("\nError at %d: Expected 'while'", cur->line_no);
@@ -419,6 +439,11 @@ static int parseIteration()
   return NORMAL;
 }
 
+/**
+ * @brief 手続き呼び出し文であるかを確かめる
+ * 
+ * @return int 
+ */
 static int parseCall()
 {
   if (cur->id != TCALL) return error("\nError at %d: Expected 'call'", cur->line_no);
@@ -439,6 +464,11 @@ static int parseCall()
   return NORMAL;
 }
 
+/**
+ * @brief 変数であるかを確かめる
+ * 
+ * @return int 
+ */
 static int parseVar()
 {
   if (cur->id != TNAME) return error("\nError at %d: Expected variable name", cur->line_no);
@@ -453,6 +483,11 @@ static int parseVar()
   return NORMAL;
 }
 
+/**
+ * @brief 入力文であるかを確かめる
+ * 
+ * @return int 
+ */
 static int parseInput()
 {
   if (cur->id != TREAD && cur->id != TREADLN)
@@ -471,6 +506,11 @@ static int parseInput()
   return NORMAL;
 }
 
+/**
+ * @brief 出力指定子であるかを確かめる
+ * 
+ * @return int 
+ */
 static int parseOutputFormat()
 {
   if (cur->id == TSTRING && cur->len != 1) {
@@ -485,6 +525,11 @@ static int parseOutputFormat()
   return NORMAL;
 }
 
+/**
+ * @brief 出力文であるかを確かめる
+ * 
+ * @return int 
+ */
 static int parseOutputStatement()
 {
   if (cur->id != TWRITE && cur->id != TWRITELN)
@@ -504,6 +549,11 @@ static int parseOutputStatement()
   return NORMAL;
 }
 
+/**
+ * @brief 文であるかを確かめる
+ * 
+ * @return int 
+ */
 static int parseStatement()
 {
   switch (cur->id) {
@@ -557,6 +607,11 @@ static int parseStatement()
   return NORMAL;
 }
 
+/**
+ * @brief 複合文であるかを確かめる
+ * 
+ * @return int 
+ */
 static int parseCompoundStatement()
 {
   if (cur->id != TBEGIN) return error("\nError at %d: Expected 'begin'", cur->line_no);
@@ -578,6 +633,11 @@ static int parseCompoundStatement()
   return NORMAL;
 }
 
+/**
+ * @brief 仮引数の並びであるかを確かめる
+ * 
+ * @return int 
+ */
 static int parseFormalParamters()
 {
   if (cur->id != TLPAREN) return error("\nError at %d: Expected '('", cur->line_no);
@@ -606,6 +666,11 @@ static int parseFormalParamters()
   return NORMAL;
 }
 
+/**
+ * @brief 副プログラム宣言であるかを確かめる
+ * 
+ * @return int 
+ */
 static int parseSubProgram()
 {
   if (cur->id != TPROCEDURE) return error("\nError at %d: Expected 'procedure'", cur->line_no);
@@ -630,6 +695,11 @@ static int parseSubProgram()
   return NORMAL;
 }
 
+/**
+ * @brief ブロックであるかを確かめる
+ * 
+ * @return int 
+ */
 static int parseBlock()
 {
   for (;;) {
@@ -648,6 +718,11 @@ static int parseBlock()
   return NORMAL;
 }
 
+/**
+ * @brief プログラムであるかを確かめる
+ * 
+ * @return int 
+ */
 static int parseProgram()
 {
   if (cur->id != TPROGRAM)
@@ -668,6 +743,11 @@ static int parseProgram()
   return NORMAL;
 }
 
+/**
+ * @brief 構文解析を行う関数
+ * 
+ * @param tok 
+ */
 void parse(Token * tok)
 {
   cur = tok;

@@ -64,12 +64,6 @@ static int num_attr;
  */
 static char string_attr[MAXSTRSIZE];
 
-// /**
-//  * @brief ファイルから先読みした1文字を一時的に格納する
-//  *
-//  */
-// int cbuf;
-
 /**
  * @brief 先読みした時点での行番号を格納する変数
  * 
@@ -177,6 +171,12 @@ static int checkPunct(char * p)
   return -1;
 }
 
+/**
+ * @brief 行番号をチェックして更新する関数
+ * 
+ * @param p 
+ * @return char* 
+ */
 static char * checkLinenum(char * p)
 {
   if (*p == '\n') {
@@ -187,6 +187,156 @@ static char * checkLinenum(char * p)
     p++;
     if (*p == '\n') p++;
     line_num++;
+  }
+  return p;
+}
+
+/**
+ * @brief 名前の読み込みを行う関数
+ * 
+ * @param p 
+ * @param cur 
+ * @return Token* 
+ */
+static Token * readName(char * p, Token * cur)
+{
+  int i = 0;
+  do {
+    string_attr[i++] = *p;
+    if (i < MAXSTRSIZE - 1)
+      string_attr[i] = '\0';
+    else {
+      error("Too long string at %d line.", line_num);
+      cur = cur->next = newToken(TK_EOF, 0, 0);
+      return cur;
+    }
+    p++;
+  } while (isalnum(*p));
+  cur = checkKeyword(cur);
+  int id = cur->id;
+  if (
+    id == TPROGRAM || id == TPROCEDURE || id == TVAR || id == TBEGIN || id == TEND || id == TELSE ||
+    id == TIF) {
+    cur->at_bol = true;
+    cur->has_space = false;
+  } else if (id == TINTEGER || id == TBOOLEAN || id == TCHAR || id == TTRUE || id == TFALSE) {
+    cur->has_space = true;
+  }
+  return cur;
+}
+
+/**
+ * @brief 数字の読み込みを行う関数
+ * 
+ * @param p 
+ * @param cur 
+ * @return Token* 
+ */
+static Token * readNumber(char * p, Token * cur)
+{
+  int num_len = 0;
+  num_attr = 0;
+  do {
+    string_attr[num_len++] = *p;
+    num_attr = num_attr * 10 + (*p - '0');
+    if (num_attr > MAXNUM) {
+      error("Error at %d: Number must not be larger than 32767.", line_num);
+      cur = cur->next = newToken(TK_EOF, 0, 0);
+      return cur;
+    }
+    p++;
+  } while (isdigit(*p));
+  string_attr[num_len] = '\0';
+  cur = cur->next = newToken(TK_NUM, TNUMBER, num_len);
+  cur->num = num_attr;
+  cur->str = strdup(string_attr);
+
+  cur->has_space = true;
+  return cur;
+}
+
+/**
+ * @brief 文字列の読み込みを行う関数
+ * 
+ * @param p 
+ * @param cur 
+ * @return Token* 
+ */
+static Token * readString(char * p, Token * cur)
+{
+  int str_len = 0;
+  int apostrophe_count = 0;
+  p++;  // 最初の'を読み飛ばす
+  for (;;) {
+    if (str_len >= MAXSTRSIZE - 1) {
+      error("Too long string at %d line.", line_num);
+      cur = cur->next = newToken(TK_EOF, 0, 0);
+      return cur;
+    }
+    if (*p == '\0') {
+      cur = cur->next = newToken(TK_EOF, 0, 0);  // 'で閉じる前にEOFになった場合
+      return cur;
+    }
+    if (*p == '\'') {
+      p++;
+      if (*p != '\'') break;
+      string_attr[str_len++] = *p;
+      apostrophe_count++;
+    }
+    string_attr[str_len++] = *p;
+    p++;
+  }
+
+  if (*p == '\0') {
+    cur = cur->next = newToken(TK_EOF, 0, 0);  // 'で閉じる前にEOFになった場合
+    return cur;
+  }
+  string_attr[str_len] = '\0';
+  cur = cur->next = newToken(TK_STR, TSTRING, str_len - apostrophe_count);
+  cur->str = strdup(string_attr);
+  cur->has_space = true;
+  return cur;
+}
+
+/**
+ * @brief コメントの読み飛ばしを行う関数
+ * 
+ * @param p 
+ * @param cur 
+ * @return char* 
+ */
+static char * skipComment(char * p, Token * cur)
+{
+  while (*(p++) != '}') {
+    p = checkLinenum(p);
+    if (*p == '\0') {
+      cur = cur->next = newToken(TK_EOF, 0, 0);
+      return NULL;
+    }
+  }
+  return p;
+}
+
+/**
+ * @brief ブロックコメントの読み飛ばしを行う関数
+ * 
+ * @param p 
+ * @param cur 
+ * @return char* 
+ */
+static char * skipBlockComment(char * p, Token * cur)
+{
+  while (1) {
+    while (*(p++) != '*') {
+      p = checkLinenum(p);
+      if (*p == '\0') {
+        cur = cur->next = newToken(TK_EOF, 0, 0);
+        return NULL;
+      }
+    }
+    if (*(p++) == '/') {
+      break;
+    }
   }
   return p;
 }
@@ -223,34 +373,16 @@ static Token * scan(char * p, Token * head)
         continue;
       // {}による注釈を読み飛ばす
       case '{':
-        while (*(p++) != '}') {
-          p = checkLinenum(p);
-          if (*p == '\0') {
-            cur = cur->next = newToken(TK_EOF, 0, 0);
-            return head->next;
-          }
-        }
+        p = skipComment(p, cur);
+        if (p == NULL) return head->next;
         has_space = true;
         continue;
       // /* */による注釈を読み飛ばす
-      // TODO: 関数化したい
       case '/':
         p++;
         if (*p == '*') {
-          // */が出るまで読み飛ばす
-          while (1) {
-            while (*(p++) != '*') {
-              p = checkLinenum(p);
-              if (*p == '\0') {
-                cur = cur->next = newToken(TK_EOF, 0, 0);
-                return head->next;
-              }
-            }
-            if (*(p++) == '/') {
-              break;
-            }
-          }
-          p++;
+          p = skipBlockComment(p, cur);
+          if (p == NULL) return head->next;
           has_space = true;
           continue;
         } else {
@@ -262,89 +394,21 @@ static Token * scan(char * p, Token * head)
 
     if (isalpha(*p)) {
       // 名前の読み込み
-      // TODO: 関数化したい
-      int i = 0;
-      do {
-        string_attr[i++] = *p;
-        if (i < MAXSTRSIZE - 1)
-          string_attr[i] = '\0';
-        else {
-          error("Too long string at %d line.", line_num);
-          cur = cur->next = newToken(TK_EOF, 0, 0);
-          return head->next;
-        }
-        p++;
-      } while (isalnum(*p));
-      cur = checkKeyword(cur);
-      int id = cur->id;
-      if (
-        id == TPROGRAM || id == TPROCEDURE || id == TVAR || id == TBEGIN || id == TEND ||
-        id == TELSE || id == TIF) {
-        cur->at_bol = true;
-        cur->has_space = false;
-      } else if (id == TINTEGER || id == TBOOLEAN || id == TCHAR || id == TTRUE || id == TFALSE) {
-        cur->has_space = true;
-      }
-
+      if ((cur = readName(p, cur))->kind == TK_EOF) return head->next;
+      p += strlen(string_attr);
       continue;
     } else if (isdigit(*p)) {
       // 数字の読み込み
-      // TODO: 関数化したい
-      int num_len = 0;
-      num_attr = 0;
-      do {
-        string_attr[num_len++] = *p;
-        num_attr = num_attr * 10 + (*p - '0');
-        if (num_attr > MAXNUM) {
-          error("Error at %d: Number must not be larger than 32767.", line_num);
-          cur = cur->next = newToken(TK_EOF, 0, 0);
-          return head->next;
-        }
-        p++;
-      } while (isdigit(*p));
-      string_attr[num_len] = '\0';
-      cur = cur->next = newToken(TK_NUM, TNUMBER, num_len);
-      cur->num = num_attr;
-      cur->str = strdup(string_attr);
-
-      cur->has_space = true;
+      if ((cur = readNumber(p, cur))->kind == TK_EOF) return head->next;
+      p += strlen(string_attr);
+      continue;
     } else if (*p == '\'') {
       // 'で囲まれた文字列の読み込み
-      // TODO: 関数化したい
-      int str_len = 0;
-      int apostrophe_count = 0;
-      p++;  // 最初の'を読み飛ばす
-      for (;;) {
-        if (str_len >= MAXSTRSIZE - 1) {
-          error("Too long string at %d line.", line_num);
-          cur = cur->next = newToken(TK_EOF, 0, 0);
-          return head->next;
-        }
-        if (*p == '\0') {
-          cur = cur->next = newToken(TK_EOF, 0, 0);  // 'で閉じる前にEOFになった場合
-          return head->next;
-        }
-        if (*p == '\'') {
-          p++;
-          if (*p != '\'') break;
-          string_attr[str_len++] = *p;
-          apostrophe_count++;
-        }
-        string_attr[str_len++] = *p;
-        p++;
-      }
-
-      if (*p == '\0') {
-        cur = cur->next = newToken(TK_EOF, 0, 0);  // 'で閉じる前にEOFになった場合
-        return head->next;
-      }
-      string_attr[str_len] = '\0';
-      cur = cur->next = newToken(TK_STR, TSTRING, str_len - apostrophe_count);
-      cur->str = strdup(string_attr);
-      cur->has_space = true;
+      if ((cur = readString(p, cur))->kind == TK_EOF) return head->next;
+      p += strlen(string_attr) + 2;  // 文字列の長さ + 両端のアポストロフィ
+      continue;
     } else {
       // その他の記号
-      // TODO: 関数化したい
       int punct_id = checkPunct(p);
       if (punct_id != -1) {
         const char * token_str[NUMOFPUNCT + 1] = {"",   "+", "-",  "*", "=", "<>", "<",
