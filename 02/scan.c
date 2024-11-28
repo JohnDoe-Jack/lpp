@@ -73,7 +73,7 @@ uint line_num = 1;
 /**
  * @brief ファイルを開いてエラー出力も行う関数
  * 
- * @param path 
+ * @param path ファイルのパス
  * @return FILE* 
  */
 static FILE * openFile(const char * path)
@@ -119,7 +119,7 @@ static char * readFile(char * path)
  * @param kind トークンの種類
  * @param id トークン識別ID
  * @param len トークンの長さ
- * @return Token* 
+ * @return Token* 生成したトークンのポインタ
  */
 static Token * newToken(TokenKind kind, int id, int len)
 {
@@ -139,7 +139,8 @@ static Token * newToken(TokenKind kind, int id, int len)
 /**
  * @brief keyword listに含まれていかをチェックする
  * 予約語が含まれていた場合、その予約語トークンを返す。もし含まれていなければ識別子トークンを返す
- * @return int
+ * @return Token* トークンの連結リストの最後尾を示すポインタ
+ * @param cur トークンの連結リストの最後尾を示すポインタ
  */
 static Token * checkKeyword(Token * cur)
 {
@@ -158,8 +159,8 @@ static Token * checkKeyword(Token * cur)
 /**
  * @brief 句読点が含まれているかをチェックする
  * 句読点が含まれていた場合、そのトークンのIDを返す。もし含まれていなければ-1を返す
- * @param p 
- * @return int 
+ * @param p ファイルの中身の文字列
+ * @return int 見つかればそのトークンのID、見つからなければ-1
  */
 static int checkPunct(char * p)
 {
@@ -174,8 +175,8 @@ static int checkPunct(char * p)
 /**
  * @brief 行番号をチェックして更新する関数
  * 
- * @param p 
- * @return char* 
+ * @param p ファイルの中身の文字列
+ * @return char* 改行文字コードを読み飛ばした後のポインタ
  */
 static char * checkLinenum(char * p)
 {
@@ -194,8 +195,8 @@ static char * checkLinenum(char * p)
 /**
  * @brief 名前の読み込みを行う関数
  * 
- * @param p 
- * @param cur 
+ * @param p ファイルの中身の文字列
+ * @param cur トークンの連結リストの最後尾を示すポインタ
  * @return Token* 
  */
 static Token * readName(char * p, Token * cur)
@@ -228,8 +229,8 @@ static Token * readName(char * p, Token * cur)
 /**
  * @brief 数字の読み込みを行う関数
  * 
- * @param p 
- * @param cur 
+ * @param p ファイルの中身の文字列
+ * @param cur トークンの連結リストの最後尾を示すポインタ
  * @return Token* 
  */
 static Token * readNumber(char * p, Token * cur)
@@ -258,8 +259,8 @@ static Token * readNumber(char * p, Token * cur)
 /**
  * @brief 文字列の読み込みを行う関数
  * 
- * @param p 
- * @param cur 
+ * @param p ファイルの中身の文字列
+ * @param cur トークンの連結リストの最後尾を示すポインタ
  * @return Token* 
  */
 static Token * readString(char * p, Token * cur)
@@ -301,8 +302,8 @@ static Token * readString(char * p, Token * cur)
 /**
  * @brief コメントの読み飛ばしを行う関数
  * 
- * @param p 
- * @param cur 
+ * @param p ファイルの中身の文字列
+ * @param cur トークンの連結リストの最後尾を示すポインタ
  * @return char* 
  */
 static char * skipComment(char * p, Token * cur)
@@ -320,8 +321,8 @@ static char * skipComment(char * p, Token * cur)
 /**
  * @brief ブロックコメントの読み飛ばしを行う関数
  * 
- * @param p 
- * @param cur 
+ * @param p ファイルの中身の文字列
+ * @param cur トークンの連結リストの最後尾を示すポインタ
  * @return char* 
  */
 static char * skipBlockComment(char * p, Token * cur)
@@ -346,7 +347,7 @@ static char * skipBlockComment(char * p, Token * cur)
  * 
  * @param p ファイル内の1文字を指すポインタ
  * @param head トークンのリストの先頭
- * @return Token* 
+ * @return Token* 構文解析が終了した後のトークンのリストの先頭ポインタ
  */
 static Token * scan(char * p, Token * head)
 {
@@ -435,8 +436,8 @@ static Token * scan(char * p, Token * head)
 /**
  * @brief トークンのリストを返す関数
  * トークンのリストは単方向の連結リストで表現される
- * @param p 
- * @return Token* 
+ * @param p ファイルの中身の文字列
+ * @return Token* 字句解析が終了した後のトークンのリストの先頭ポインタ
  */
 Token * tokenize(char * p)
 {
@@ -448,8 +449,8 @@ Token * tokenize(char * p)
 /**
  * @brief トークンのリストを返す関数
  * 入力されたファイルに対して構文解析を行い、tokenize関数でトークンのリストを返す
- * @param path 
- * @return Token* 
+ * @param path ファイルのパス
+ * @return Token* 構文解析が終了した後のトークンのリストの先頭ポインタ
  */
 Token * tokenizeFile(char * path)
 {

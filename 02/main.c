@@ -1,6 +1,13 @@
 
 #include "lpp.h"
 
+/**
+ * @brief ファイルが存在するかをチェックする
+ * 
+ * @param path ファイルのパス
+ * @return true ファイルが存在した場合
+ * @return false ファイルが存在しなかった場合
+ */
 bool file_exists(char * path)
 {
   struct stat st;

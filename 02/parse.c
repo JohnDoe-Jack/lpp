@@ -8,29 +8,17 @@
  * 初期値は0であり、段付が深くなるごとにインクリメントされる
  */
 static int indent_level = 0;
-/**
- * @brief 行頭が改行されるべきかを文脈に併せて判断する変数。
- * トークンのリストにも改行されて段落の一番最初にあるかどうかを表すフラグがあるが、
- * この変数は文脈に応じて改行されるべきかを判断するための変数である。
- * 二つのフラグの論理和で改行されるべきかを判断する。
- */
+
+//! 行頭にいるかどうかを表す変数。トークンのリストにも改行されて段落の一番最初にあるかどうかを表すフラグがあるが、この変数は文脈に応じて改行されるべきかを判断するための変数である。トークンに付与されたものとこれの二つのフラグの論理和で改行されるべきかを判断する。
 static bool at_bol = false;
 
-/**
- * @brief 現在のトークンを指すグローバルな変数
- * 
- */
+//! 現在注目しているトークン
 static Token * cur;
-/**
- * @brief 繰り返し文の深さを表す変数
- * 
- */
+
+//! 現在注目しているトークンの位置を表す変数
 static int iteration_level = 0;
 
-/**
- * @brief トークンの種類を表す文字列の配列
- * 
- */
+//! トークンの種類を表す文字列の配列
 static const char * token_str[NUMOFTOKEN + 1] = {
   "",       "NAME",   "program",   "var",     "array",   "of",     "begin",   "end",  "if",
   "then",   "else",   "procedure", "return",  "call",    "while",  "do",      "not",  "or",
@@ -746,7 +734,7 @@ static int parseProgram()
 /**
  * @brief 構文解析を行う関数
  * 
- * @param tok 
+ * @param tok トークンの連結リストの先頭を示すポインタ
  */
 void parse(Token * tok)
 {
