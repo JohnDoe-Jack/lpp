@@ -10,3 +10,5 @@ test_results
 *.gch
 pp
 tc
+info
+*.info
