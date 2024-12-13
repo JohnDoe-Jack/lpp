@@ -22,15 +22,16 @@ static unsigned int hash(const char * key, const int size)
   return hash % size;
 }
 
-void insertToHashMap(const HashMap * hashmap, const char * key, const char * value)
+void insertToHashMap(const HashMap * hashmap, const char * key, const Token * value)
 {
   unsigned int index = hash(key, hashmap->size);
 
   Entry * entry = hashmap->entries[index];
   while (entry != NULL) {
     if (strcmp(entry->key, key) == 0) {
-      free(entry->value);
-      entry->value = strdup(value);
+      free(entry->value->name);
+      entry->value->name = strdup(value->str);
+      entry->value->defline = value->line_no;
       return;
     }
     entry = entry->next;
@@ -38,7 +39,7 @@ void insertToHashMap(const HashMap * hashmap, const char * key, const char * val
 
   entry = malloc(sizeof(Entry));
   entry->key = strdup(key);
-  entry->value = strdup(value);
+  entry->value->name = strdup(value->str);
   entry->next = hashmap->entries[index];
   hashmap->entries[index] = entry;
 }
@@ -50,7 +51,7 @@ char * getValueFromHashMap(const HashMap * hashmap, const char * key)
   Entry * entry = hashmap->entries[index];
   while (entry != NULL) {
     if (strcmp(entry->key, key) == 0) {
-      return entry->value;
+      return entry->value->name;
     }
     entry = entry->next;
   }

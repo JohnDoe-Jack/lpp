@@ -17,7 +17,7 @@ static Token * cur;
 static int iteration_level = 0;
 
 //!
-ID *globalidroot = NULL, *localidroot = NULL;
+ID * globalidroot = NULL;
 
 //! トークンの種類を表す文字列の配列
 static const char * token_str[NUMOFTOKEN + 1] = {

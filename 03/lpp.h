@@ -1,5 +1,7 @@
 #ifndef LPP_H
 #define LPP_H
+#include <ctype.h>
+#include <errno.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -261,7 +263,7 @@ typedef struct Entry Entry;
 struct Entry
 {
   char * key;
-  char * value;
+  ID * value;
   Entry * next;
 };
 
@@ -272,11 +274,12 @@ struct HashMap
   int size;
 };
 HashMap * createHashMap(int);
-void insertToHashMap(const HashMap *, const char *, const char *);
+void insertToHashMap(const HashMap *, const char *, const Token *);
 char * getValueFromHashMap(const HashMap *, const char *);
 void freeHashMap(HashMap *);
 int removeFromHashMap(const HashMap *, const char *);
 int error(char *, ...);
+
 Token * tokenizeFile(char *);
 void parse(Token *);
 #endif
