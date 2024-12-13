@@ -1,7 +1,5 @@
 #ifndef LPP_H
 #define LPP_H
-#include <ctype.h>
-#include <errno.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -214,32 +212,70 @@ struct Token
   bool has_space;
 };
 
+typedef struct TYPE TYPE;
 struct TYPE
 {
   int ttype;
   int arraysize;
-  struct TYPE * etp;
-  struct TYPE * paratp;
+  TYPE * etp;
+  TYPE * paratp;
 };
 
+typedef struct LINE LINE;
 struct LINE
 {
   int reflinenum;
-  struct LINE * nextlinep;
+  LINE * nextlinep;
 };
 
+typedef struct ID ID;
 struct ID
 {
   char * name;
   char * procname;
-  struct TYPE * itp;
+  TYPE * itp;
   int ispara;
   int defline;
-  struct LINE * irefp;
+  LINE * irefp;
   ID * nextp;
 };
-typedef struct ID ID;
 
+typedef enum {
+  //! 整数
+  TPRINT,
+  //! 文字
+  TPCHAR,
+  //! 真偽値
+  TPBOOL,
+  //! 整数型の配列
+  TPARRAYINT,
+  //! 文字型の配列
+  TPARRAYCHAR,
+  //! 真偽値の配列
+  TPARRAYBOOL,
+  //! 手続き
+  TPPROC
+} TYPE_KIND;
+
+typedef struct Entry Entry;
+struct Entry
+{
+  char * key;
+  char * value;
+  Entry * next;
+};
+
+typedef struct HashMap HashMap;
+struct HashMap
+{
+  Entry ** entries;
+  int size;
+};
+HashMap * createHashMap(int);
+void insertToHashMap(const HashMap *, const char *, const char *);
+char * getValueFromHashMap(const HashMap *, const char *);
+void freeHashMap(HashMap *);
+int removeFromHashMap(const HashMap *, const char *);
 int error(char *, ...);
 Token * tokenizeFile(char *);
 void parse(Token *);

@@ -1,5 +1,3 @@
-#include <stdbool.h>
-#include <stdio.h>
 
 #include "lpp.h"
 
@@ -17,6 +15,9 @@ static Token * cur;
 
 //! 現在注目しているトークンの位置を表す変数
 static int iteration_level = 0;
+
+//!
+ID *globalidroot = NULL, *localidroot = NULL;
 
 //! トークンの種類を表す文字列の配列
 static const char * token_str[NUMOFTOKEN + 1] = {
@@ -102,7 +103,7 @@ static void printToken(const Token * tok)
  */
 static void consumeToken(Token * tok)
 {
-  // printToken(tok);
+  printToken(tok);
   cur = cur->next;
 }
 
