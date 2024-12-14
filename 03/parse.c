@@ -57,6 +57,8 @@ static int parseInput();
 static int parseOutputFormat();
 static int parseOutputStatement();
 
+void printCrossreferenceTable() {}
+
 /**
  * @brief indent_levelに応じて段付を行う
  * もしindent_levelが負の値になった時は異常と見なしてプログラムを終了させる
