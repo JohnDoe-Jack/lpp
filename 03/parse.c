@@ -1,6 +1,5 @@
-
 #include "lpp.h"
-
+#define HASHSIZE 1000
 /**
  * @brief 段付の深さを表す変数
  * 初期値は0であり、段付が深くなるごとにインクリメントされる
@@ -16,8 +15,13 @@ static Token * cur;
 //! 現在注目しているトークンの位置を表す変数
 static int iteration_level = 0;
 
-//!
-ID * globalidroot = NULL;
+//! クロスリファレンス表を格納するHashMap
+HashMap *globalid, *localid;
+
+//! 定義されたプロシージャの名前を格納する変数
+static char * procname;
+
+//! 定義された行番号を格納する変数
 
 //! トークンの種類を表す文字列の配列
 static const char * token_str[NUMOFTOKEN + 1] = {
@@ -77,6 +81,8 @@ static void printIndent()
  */
 static void printToken(const Token * tok)
 {
+  // プリティプリント防止
+  return;
   if (!at_bol && !tok->at_bol && tok->has_space) printf(" ");
   if ((tok->at_bol || at_bol) && tok->id != TPROGRAM) {
     printf("\n");
@@ -94,6 +100,27 @@ static void printToken(const Token * tok)
   }
   fflush(stdout);
   at_bol = false;
+}
+
+static TYPE * newType(TYPE_KIND ttype, TYPE * etp, TYPE * paratp)
+{
+  TYPE * tp = malloc(sizeof(TYPE));
+  tp->ttype = ttype;
+  tp->etp = etp;
+  tp->paratp = paratp;
+  return tp;
+}
+
+static ID * newID(const char * name, const char * procname, TYPE * itp, int ispara, int defline)
+{
+  ID * id = malloc(sizeof(ID));
+  id->name = strdup(name);
+  id->procname = strdup(procname);
+  id->itp = itp;
+  id->ispara = ispara;
+  id->irefp = NULL;
+  id->defline = defline;
+  return id;
 }
 
 /**
@@ -666,6 +693,12 @@ static int parseSubProgram()
   indent_level = 1;
   consumeToken(cur);
   if (cur->id != TNAME) return error("\nError at %d: Expected procedure name", cur->line_no);
+
+  procname = cur->str;
+  TYPE * type = newType(TPPROC, NULL, NULL);
+  ID * proc_node = newID(cur->str, NULL, type, false, cur->line_no);
+  insertToHashMap(globalid, cur->str, proc_node);
+
   consumeToken(cur);
 
   if (cur->id == TLPAREN) parseFormalParamters();
@@ -740,5 +773,10 @@ static int parseProgram()
 void parse(Token * tok)
 {
   cur = tok;
+  globalid = newHashMap(HASHSIZE);
+  localid = newHashMap(HASHSIZE);
   if (parseProgram() == ERROR) error("Parser aborted with error.");
+
+  freeHashMap(globalid);
+  freeHashMap(localid);
 }

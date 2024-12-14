@@ -1,6 +1,3 @@
-#include <cstddef>
-#include <cstdlib>
-
 #include "lpp.h"
 
 HashMap * newHashMap(int size)
@@ -29,36 +26,33 @@ static unsigned int hash(const char * key, const int size)
   return hash % size;
 }
 
-void insertToHashMap(const HashMap * hashmap, const char * key, const Token * value)
+void insertToHashMap(const HashMap * hashmap, const char * key, ID * value)
 {
   unsigned int index = hash(key, hashmap->size);
 
   Entry * entry = hashmap->entries[index];
   while (entry != NULL) {
     if (strcmp(entry->key, key) == 0) {
-      free(entry->value->name);
-      entry->value->name = strdup(value->str);
-      entry->value->defline = value->line_no;
+      entry->value = value;
       return;
     }
     entry = entry->next;
   }
 
   entry->key = strdup(key);
-  entry->value = malloc(sizeof(ID));
-  entry->value->name = strdup(value->str);
+  entry->value = value;
   entry->next = hashmap->entries[index];
   hashmap->entries[index] = entry;
 }
 
-char * getValueFromHashMap(const HashMap * hashmap, const char * key)
+ID * getValueFromHashMap(const HashMap * hashmap, const char * key)
 {
   unsigned int index = hash(key, hashmap->size);
 
   Entry * entry = hashmap->entries[index];
   while (entry != NULL) {
     if (strcmp(entry->key, key) == 0) {
-      return entry->value->name;
+      return entry->value;
     }
     entry = entry->next;
   }

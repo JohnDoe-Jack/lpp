@@ -217,9 +217,13 @@ struct Token
 typedef struct TYPE TYPE;
 struct TYPE
 {
+  //! 型が
   int ttype;
+  //! 配列型の場合の配列サイズ
   int arraysize;
+  //! 配列型の場合の要素の型
   TYPE * etp;
+  //! 手続き型の場合の仮引数の型リスト
   TYPE * paratp;
 };
 
@@ -236,10 +240,9 @@ struct ID
   char * name;
   char * procname;
   TYPE * itp;
-  int ispara;
+  bool ispara;
   int defline;
   LINE * irefp;
-  ID * nextp;
 };
 
 typedef enum {
@@ -273,9 +276,9 @@ struct HashMap
   Entry ** entries;
   int size;
 };
-HashMap * createHashMap(int);
-void insertToHashMap(const HashMap *, const char *, const Token *);
-char * getValueFromHashMap(const HashMap *, const char *);
+HashMap * newHashMap(int);
+void insertToHashMap(const HashMap *, const char *, ID *);
+ID * getValueFromHashMap(const HashMap *, const char *);
 void freeHashMap(HashMap *);
 int removeFromHashMap(const HashMap *, const char *);
 int error(char *, ...);
