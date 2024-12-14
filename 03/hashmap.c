@@ -1,8 +1,15 @@
+#include <cstddef>
+#include <cstdlib>
+
 #include "lpp.h"
 
 HashMap * newHashMap(int size)
 {
-  HashMap * hashmap = malloc(sizeof(HashMap));
+  HashMap * hashmap;
+  if ((hashmap = malloc(sizeof(HashMap))) == NULL) {
+    error("Memory allocation error\n");
+    exit(1);
+  }
   hashmap->size = size;
 
   hashmap->entries = malloc(sizeof(Entry) * size);
@@ -37,8 +44,8 @@ void insertToHashMap(const HashMap * hashmap, const char * key, const Token * va
     entry = entry->next;
   }
 
-  entry = malloc(sizeof(Entry));
   entry->key = strdup(key);
+  entry->value = malloc(sizeof(ID));
   entry->value->name = strdup(value->str);
   entry->next = hashmap->entries[index];
   hashmap->entries[index] = entry;
