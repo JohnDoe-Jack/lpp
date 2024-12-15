@@ -18,6 +18,9 @@ static int iteration_level = 0;
 //! クロスリファレンス表を格納するHashMap
 HashMap *globalid, *localid;
 
+//! 現在指しているクロスリファレンス表のポインタを格納している変数
+HashMap ** current_id;
+
 //! 定義されたプロシージャの名前を格納する変数
 static char * procname;
 
@@ -57,7 +60,16 @@ static int parseInput();
 static int parseOutputFormat();
 static int parseOutputStatement();
 
-void printCrossreferenceTable() {}
+static void printCrossreferenceTable(HashMap * idroot) { idroot->size = 0; }
+
+static void enterScope(HashMap * idroot) { current_id = &idroot; }
+
+static void exitScope()
+{
+  printCrossreferenceTable(*current_id);
+  freeHashMap(*current_id);
+  current_id = &globalid;
+}
 
 /**
  * @brief indent_levelに応じて段付を行う
@@ -694,6 +706,7 @@ static int parseSubProgram()
   if (cur->id != TPROCEDURE) return error("\nError at %d: Expected 'procedure'", cur->line_no);
   indent_level = 1;
   consumeToken(cur);
+
   if (cur->id != TNAME) return error("\nError at %d: Expected procedure name", cur->line_no);
 
   procname = cur->str;
@@ -716,6 +729,7 @@ static int parseSubProgram()
   if (cur->id != TSEMI) return error("\nError at %d: Expected ';'", cur->line_no);
   consumeToken(cur);
   indent_level--;
+  printCrossreferenceTable(localid);
   return NORMAL;
 }
 
