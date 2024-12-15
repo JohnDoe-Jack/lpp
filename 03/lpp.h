@@ -277,15 +277,6 @@ struct HashMap
   int size;
 };
 
-typedef struct Scope Scope;
-struct Scope
-{
-  //! 外側のスコープへのポインタ
-  Scope * parent;
-  //! このスコープのシンボルテーブル
-  HashMap * symbolTable;
-};
-
 HashMap * newHashMap(int);
 void insertToHashMap(const HashMap *, const char *, ID *);
 ID * getValueFromHashMap(const HashMap *, const char *);

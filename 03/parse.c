@@ -24,6 +24,9 @@ HashMap ** current_id;
 //! 定義されたプロシージャの名前を格納する変数
 static char * procname;
 
+TYPE * type = NULL;
+ID * node = NULL;
+
 //! 定義された行番号を格納する変数
 
 //! トークンの種類を表す文字列の配列
@@ -62,13 +65,27 @@ static int parseOutputStatement();
 
 static void printCrossreferenceTable(HashMap * idroot) { idroot->size = 0; }
 
-static void enterScope(HashMap * idroot) { current_id = &idroot; }
+/**
+ * @brief ローカルなスコープに入る
+ * currnet_idをlocalidに向けて、localidのハッシュマップの初期化する。
+ */
+static void enterScope()
+{
+  localid = newHashMap(HASHSIZE);
+  *current_id = localid;
+}
 
+/**
+ * @brief グローバルなスコープに入る
+ * ハッシュマップの中身をクロスリファレンス表として出力する。
+ * ローカルなハッシュマップはメモリから開放を行う。
+ * 最後にcurrent_idをglobalidに向ける。
+ */
 static void exitScope()
 {
   printCrossreferenceTable(*current_id);
   freeHashMap(*current_id);
-  current_id = &globalid;
+  *current_id = globalid;
 }
 
 /**
@@ -261,6 +278,7 @@ static int parseType()
 static int parseVarNames()
 {
   if (cur->id != TNAME) return ERROR;
+
   consumeToken(cur);
   while (cur->id == TCOMMA) {
     consumeToken(cur);
@@ -704,15 +722,18 @@ static int parseFormalParamters()
 static int parseSubProgram()
 {
   if (cur->id != TPROCEDURE) return error("\nError at %d: Expected 'procedure'", cur->line_no);
+  // ローカルなスコープに入る
+  enterScope();
   indent_level = 1;
   consumeToken(cur);
 
   if (cur->id != TNAME) return error("\nError at %d: Expected procedure name", cur->line_no);
 
   procname = cur->str;
-  TYPE * type = newType(TPPROC, NULL, NULL);
-  ID * proc_node = newID(cur->str, NULL, type, false, cur->line_no);
-  insertToHashMap(globalid, cur->str, proc_node);
+
+  type = newType(TPPROC, NULL, NULL);
+  node = newID(cur->str, NULL, type, false, cur->line_no);
+  insertToHashMap(*current_id, cur->str, node);
 
   consumeToken(cur);
 
@@ -730,6 +751,7 @@ static int parseSubProgram()
   consumeToken(cur);
   indent_level--;
   printCrossreferenceTable(localid);
+  exitScope();
   return NORMAL;
 }
 
@@ -790,7 +812,6 @@ void parse(Token * tok)
 {
   cur = tok;
   globalid = newHashMap(HASHSIZE);
-  localid = newHashMap(HASHSIZE);
   if (parseProgram() == ERROR) error("Parser aborted with error.");
 
   freeHashMap(globalid);
