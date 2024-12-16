@@ -24,6 +24,15 @@ HashMap ** current_id;
 //! 定義されたプロシージャの名前を格納する変数
 static char * procname;
 
+typedef struct
+{
+  int line_no;
+  char * varname;
+} VAR;
+
+DECLARE_STACK(VARNAME, VAR)
+VARNAME varname_stack;
+
 TYPE * type = NULL;
 ID * node = NULL;
 
@@ -63,7 +72,17 @@ static int parseInput();
 static int parseOutputFormat();
 static int parseOutputStatement();
 
-static void printCrossreferenceTable(HashMap * idroot) { idroot->size = 0; }
+static void printCrossreferenceTable(HashMap * idroot)
+{
+  for (int i = 0; i < idroot->size; i++) {
+    Entry * entry = idroot->entries[i];
+    while (entry != NULL) {
+      // クロスリファレンス表の出力
+
+      entry = entry->next;
+    }
+  }
+}
 
 /**
  * @brief ローカルなスコープに入る
@@ -133,13 +152,21 @@ static void printToken(const Token * tok)
   at_bol = false;
 }
 
-static TYPE * newType(TYPE_KIND ttype, TYPE * etp, TYPE * paratp)
+static TYPE * newType(TYPE_KIND ttype, int arraysize, TYPE * etp, TYPE * paratp)
 {
   TYPE * tp = malloc(sizeof(TYPE));
   tp->ttype = ttype;
+  tp->arraysize = arraysize;
   tp->etp = etp;
   tp->paratp = paratp;
   return tp;
+}
+
+static void freeType(TYPE * tp)
+{
+  if (tp->etp != NULL) freeType(tp->etp);
+  if (tp->paratp != NULL) freeType(tp->paratp);
+  free(tp);
 }
 
 static ID * newID(const char * name, const char * procname, TYPE * itp, int ispara, int defline)
@@ -152,6 +179,13 @@ static ID * newID(const char * name, const char * procname, TYPE * itp, int ispa
   id->irefp = NULL;
   id->defline = defline;
   return id;
+}
+
+static void freeID(ID * id)
+{
+  free(id->name);
+  free(id->procname);
+  free(id);
 }
 
 /**
@@ -223,18 +257,22 @@ static bool isAddOp()
 }
 
 /**
- * @brief もし現在注目しているトークンが標準型であった場合trueを返す
+ * @brief もし現在注目しているトークンが標準型であった場合その型表す定数を返す
  * 
- * @return true 
- * @return false 
+ * @return TINTEGER
+  * @return TBOOLEAN
+  * @return TCHAR
+  * @return false
  */
-static bool isStdType()
+static int isStdType()
 {
   switch (cur->id) {
     case TINTEGER:
+      return TINTEGER;
     case TBOOLEAN:
+      return TBOOLEAN;
     case TCHAR:
-      return true;
+      return TCHAR;
     default:
       return false;
   }
@@ -247,26 +285,36 @@ static bool isStdType()
  */
 static int parseType()
 {
-  if (isStdType()) {
+  int vartype = 0;
+  if ((vartype = isStdType()) != false) {
+    type = newType(vartype, -1, NULL, NULL);
     consumeToken(cur);
+
   } else if (cur->id == TARRAY) {
+    int arraysize = 0;
     consumeToken(cur);
     if (cur->id != TLSQPAREN) return error("\nError at %d: Expected '['", cur->line_no);
     consumeToken(cur);
     if (cur->id != TNUMBER) return error("\nError at %d: Expected number", cur->line_no);
+    arraysize = cur->num;
     consumeToken(cur);
     if (cur->id != TRSQPAREN) return error("\nError at %d: Expected ']'", cur->line_no);
     consumeToken(cur);
     if (cur->id != TOF) return error("\nError at %d: Expected 'of'", cur->line_no);
     consumeToken(cur);
 
-    if (!isStdType()) return error("\nError at %d: Expected type", cur->line_no);
+    if ((vartype = isStdType()) == false)
+      return error("\nError at %d: Expected type", cur->line_no);
+    TYPE * etp = newType(vartype, arraysize, NULL, false);
+    type = newType(-1, -1, etp, NULL);
+
     consumeToken(cur);
 
   } else {
     return error("\nError at %d: Expected type", cur->line_no);
   }
 
+  freeType(type);
   return NORMAL;
 }
 
@@ -278,11 +326,14 @@ static int parseType()
 static int parseVarNames()
 {
   if (cur->id != TNAME) return ERROR;
-
+  VAR var = {cur->line_no, cur->str};
+  VARNAME_push(&varname_stack, var);
   consumeToken(cur);
   while (cur->id == TCOMMA) {
     consumeToken(cur);
     if (cur->id != TNAME) return error("\nError at %d: Expected variable name", cur->line_no);
+    VAR var = {cur->line_no, cur->str};
+    VARNAME_push(&varname_stack, var);
     consumeToken(cur);
   }
 
@@ -309,6 +360,13 @@ static int parseVarDeclaration()
   if (parseType() == ERROR) return ERROR;
 
   if (cur->id != TSEMI) return error("\nError at %d: Expected ';'", cur->line_no);
+  while (!VARNAME_is_empty(&varname_stack)) {
+    VAR var = VARNAME_pop(&varname_stack);
+    node = newID(var.varname, procname, type, false, var.line_no);
+    insertToHashMap(*current_id, var.varname, node);
+    freeID(node);
+  }
+  freeType(type);
   consumeToken(cur);
 
   while (cur->id == TNAME) {
@@ -696,7 +754,19 @@ static int parseFormalParamters()
   if (cur->id != TCOLON) return error("\nError at %d: Expected ':'", cur->line_no);
   consumeToken(cur);
 
-  if (parseType()) return error("\nError at %d: Expected type", cur->line_no);
+  if (parseType() == ERROR) return error("\nError at %d: Expected type", cur->line_no);
+
+  while (!VARNAME_is_empty(&varname_stack)) {
+    VAR var = VARNAME_pop(&varname_stack);
+    node = newID(var.varname, procname, type, true, var.line_no);
+    insertToHashMap(*current_id, var.varname, node);
+    freeID(node);
+  }
+
+  ID * procnode = getValueFromHashMap(*current_id, procname);
+  if (procnode == NULL) return error("\nError at %d: Undefined procedure name", cur->line_no);
+
+  procnode->itp->paratp = type;
 
   while (cur->id == TSEMI) {
     consumeToken(cur);
@@ -705,7 +775,11 @@ static int parseFormalParamters()
     if (cur->id != TCOLON) return error("\nError at %d: Expected ':'", cur->line_no);
     consumeToken(cur);
 
-    if (parseType()) return error("\nError at %d: Expected type", cur->line_no);
+    if (parseType() == ERROR) return error("\nError at %d: Expected type", cur->line_no);
+
+    TYPE * paratp = procnode->itp->paratp;
+    while ((paratp->paratp) != NULL) paratp = paratp->paratp;
+    paratp->paratp = type;
   }
 
   if (cur->id != TRPAREN) return error("\nError at %d: Expected ')'", cur->line_no);
@@ -731,7 +805,7 @@ static int parseSubProgram()
 
   procname = cur->str;
 
-  type = newType(TPPROC, NULL, NULL);
+  type = newType(TPPROC, -1, NULL, NULL);
   node = newID(cur->str, NULL, type, false, cur->line_no);
   insertToHashMap(*current_id, cur->str, node);
 
@@ -812,6 +886,7 @@ void parse(Token * tok)
 {
   cur = tok;
   globalid = newHashMap(HASHSIZE);
+  VARNAME_init(&varname_stack);
   if (parseProgram() == ERROR) error("Parser aborted with error.");
 
   freeHashMap(globalid);
