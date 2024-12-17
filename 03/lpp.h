@@ -225,6 +225,8 @@ struct TYPE
   TYPE * etp;
   //! 手続き型の場合の仮引数の型リスト
   TYPE * paratp;
+  //! 解放済みフラグ
+  bool is_freed;
 };
 
 typedef struct LINE LINE;

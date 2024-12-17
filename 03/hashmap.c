@@ -9,7 +9,11 @@ HashMap * newHashMap(int size)
   }
   hashmap->size = size;
 
-  hashmap->entries = malloc(sizeof(Entry) * size);
+  hashmap->entries = malloc(sizeof(Entry *) * size);
+  if (hashmap->entries == NULL) {
+    error("Memory allocation error\n");
+    exit(1);
+  }
   for (int i = 0; i < size; i++) {
     hashmap->entries[i] = NULL;
   }
@@ -37,6 +41,13 @@ void insertToHashMap(const HashMap * hashmap, const char * key, ID * value)
       return;
     }
     entry = entry->next;
+  }
+
+  entry = (Entry *)malloc(sizeof(Entry));
+  if (entry == NULL) {
+    // メモリ確保に失敗した場合の処理
+    fprintf(stderr, "Failed to allocate memory for new entry\n");
+    exit(1);
   }
 
   entry->key = strdup(key);

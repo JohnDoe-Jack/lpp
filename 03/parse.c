@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "lpp.h"
 #define HASHSIZE 1000
 /**
@@ -22,7 +24,7 @@ HashMap *globalid, *localid;
 HashMap ** current_id;
 
 //! 定義されたプロシージャの名前を格納する変数
-static char * procname;
+static char * procname = NULL;
 
 typedef struct
 {
@@ -78,7 +80,7 @@ static void printCrossreferenceTable(HashMap * idroot)
     Entry * entry = idroot->entries[i];
     while (entry != NULL) {
       // クロスリファレンス表の出力
-
+      printf("%s\n", entry->key);
       entry = entry->next;
     }
   }
@@ -91,7 +93,7 @@ static void printCrossreferenceTable(HashMap * idroot)
 static void enterScope()
 {
   localid = newHashMap(HASHSIZE);
-  *current_id = localid;
+  current_id = &localid;
 }
 
 /**
@@ -103,8 +105,9 @@ static void enterScope()
 static void exitScope()
 {
   printCrossreferenceTable(*current_id);
+  free(procname);
   freeHashMap(*current_id);
-  *current_id = globalid;
+  current_id = &globalid;
 }
 
 /**
@@ -159,11 +162,15 @@ static TYPE * newType(TYPE_KIND ttype, int arraysize, TYPE * etp, TYPE * paratp)
   tp->arraysize = arraysize;
   tp->etp = etp;
   tp->paratp = paratp;
+  tp->is_freed = false;
   return tp;
 }
 
 static void freeType(TYPE * tp)
 {
+  if (tp == NULL || tp->is_freed) return;  // NULL チェックと解放済みチェック
+
+  tp->is_freed = true;  // 解放済みに設定
   if (tp->etp != NULL) freeType(tp->etp);
   if (tp->paratp != NULL) freeType(tp->paratp);
   free(tp);
@@ -173,7 +180,7 @@ static ID * newID(const char * name, const char * procname, TYPE * itp, int ispa
 {
   ID * id = malloc(sizeof(ID));
   id->name = strdup(name);
-  id->procname = strdup(procname);
+  if (procname != NULL) id->procname = strdup(procname);
   id->itp = itp;
   id->ispara = ispara;
   id->irefp = NULL;
@@ -314,7 +321,7 @@ static int parseType()
     return error("\nError at %d: Expected type", cur->line_no);
   }
 
-  freeType(type);
+  // freeType(type);
   return NORMAL;
 }
 
@@ -362,11 +369,23 @@ static int parseVarDeclaration()
   if (cur->id != TSEMI) return error("\nError at %d: Expected ';'", cur->line_no);
   while (!VARNAME_is_empty(&varname_stack)) {
     VAR var = VARNAME_pop(&varname_stack);
-    node = newID(var.varname, procname, type, false, var.line_no);
-    insertToHashMap(*current_id, var.varname, node);
-    freeID(node);
+    ID * value = getValueFromHashMap(*current_id, var.varname);
+    if (value == NULL) {
+      node = newID(var.varname, procname, type, false, var.line_no);
+      insertToHashMap(*current_id, var.varname, node);
+      printf("hoge");
+
+    } else {
+      LINE * last_line_ptr = value->irefp;
+      while (last_line_ptr != NULL) {
+        last_line_ptr = last_line_ptr->nextlinep;
+      }
+      last_line_ptr->reflinenum = var.line_no;
+    }
+
+    // freeID(node);
   }
-  freeType(type);
+  // freeType(type);
   consumeToken(cur);
 
   while (cur->id == TNAME) {
@@ -758,9 +777,11 @@ static int parseFormalParamters()
 
   while (!VARNAME_is_empty(&varname_stack)) {
     VAR var = VARNAME_pop(&varname_stack);
-    node = newID(var.varname, procname, type, true, var.line_no);
-    insertToHashMap(*current_id, var.varname, node);
-    freeID(node);
+    if (getValueFromHashMap(*current_id, var.varname) == NULL) {
+      node = newID(var.varname, procname, type, true, var.line_no);
+      insertToHashMap(*current_id, var.varname, node);
+    }
+    // freeID(node);
   }
 
   ID * procnode = getValueFromHashMap(*current_id, procname);
@@ -803,7 +824,7 @@ static int parseSubProgram()
 
   if (cur->id != TNAME) return error("\nError at %d: Expected procedure name", cur->line_no);
 
-  procname = cur->str;
+  procname = strdup(cur->str);
 
   type = newType(TPPROC, -1, NULL, NULL);
   node = newID(cur->str, NULL, type, false, cur->line_no);
@@ -886,9 +907,9 @@ void parse(Token * tok)
 {
   cur = tok;
   globalid = newHashMap(HASHSIZE);
+  current_id = &globalid;
   VARNAME_init(&varname_stack);
   if (parseProgram() == ERROR) error("Parser aborted with error.");
-
-  freeHashMap(globalid);
-  freeHashMap(localid);
+  // freeHashMap(globalid);
+  // freeHashMap(localid);
 }
