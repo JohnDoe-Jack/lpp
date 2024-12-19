@@ -1,5 +1,3 @@
-#include <string.h>
-
 #include "lpp.h"
 #define HASHSIZE 1000
 /**
@@ -25,6 +23,9 @@ HashMap ** current_id;
 
 //! 定義されたプロシージャの名前を格納する変数
 static char * procname = NULL;
+
+//! 副プログラムの仮引数のカウント用変数
+static uint parameter_num = 0;
 
 typedef struct
 {
@@ -74,13 +75,82 @@ static int parseInput();
 static int parseOutputFormat();
 static int parseOutputStatement();
 
+static void pushIref(LINE ** iref, int refline)
+{
+  while (*iref != NULL) {
+    iref = &(*iref)->nextlinep;
+  }
+  *iref = malloc(sizeof(LINE));
+  (*iref)->reflinenum = refline;
+  (*iref)->nextlinep = NULL;
+}
+
+static ID * lookupAndAddIref(const char * name, int line_no)
+{
+  ID * entry = NULL;
+  entry = getValueFromHashMap(*current_id, name);
+  if (entry == NULL && *current_id == localid) {
+    entry = getValueFromHashMap(globalid, name);
+  }
+  if (entry != NULL) {
+    pushIref(&entry->irefp, line_no);
+  }
+  return entry;
+}
+
+static void printName(Entry * entry)
+{
+  printf("%s", entry->key);
+  if (entry->value->procname != NULL) printf(":%s", entry->value->procname);
+  printf("|");
+}
+
+static void printType(TYPE * tp)
+{
+  if (tp == NULL) return;
+  if (tp->ttype == TPPROC) {
+    printf("procedure");
+    if (tp->paratp != NULL) {
+      printf("(");
+      TYPE * param = tp->paratp;
+      while (param != NULL) {
+        printf("%s", token_str[param->ttype]);
+        param = param->paratp;
+        if (param != NULL) {
+          printf(", ");
+        }
+      }
+      printf(")");
+    }
+  } else {
+    printf("%s", token_str[tp->ttype]);
+    if (tp->arraysize != -1) {
+      printf("[%d]", tp->arraysize);
+    }
+    if (tp->etp != NULL) {
+      printf(" of ");
+      printType(tp->etp);
+    }
+  }
+}
+
 static void printCrossreferenceTable(HashMap * idroot)
 {
   for (int i = 0; i < idroot->size; i++) {
     Entry * entry = idroot->entries[i];
     while (entry != NULL) {
       // クロスリファレンス表の出力
-      printf("%s\n", entry->key);
+      printName(entry);
+      printType(entry->value->itp);
+      printf("|%d|", entry->value->defline);
+      while (entry->value->irefp != NULL) {
+        printf("%d", entry->value->irefp->reflinenum);
+        entry->value->irefp = entry->value->irefp->nextlinep;
+        if (entry->value->irefp != NULL) {
+          printf(",");
+        }
+      }
+      printf("\n");
       entry = entry->next;
     }
   }
@@ -104,8 +174,8 @@ static void enterScope()
  */
 static void exitScope()
 {
-  printCrossreferenceTable(*current_id);
-  free(procname);
+  printCrossreferenceTable(localid);
+  procname = NULL;
   freeHashMap(*current_id);
   current_id = &globalid;
 }
@@ -176,11 +246,14 @@ static void freeType(TYPE * tp)
   free(tp);
 }
 
-static ID * newID(const char * name, const char * procname, TYPE * itp, int ispara, int defline)
+static ID * newID(const char * name, const char * _procname, TYPE * itp, int ispara, int defline)
 {
   ID * id = malloc(sizeof(ID));
   id->name = strdup(name);
-  if (procname != NULL) id->procname = strdup(procname);
+  if (_procname != NULL)
+    id->procname = strdup(_procname);
+  else
+    id->procname = NULL;
   id->itp = itp;
   id->ispara = ispara;
   id->irefp = NULL;
@@ -271,15 +344,13 @@ static bool isAddOp()
   * @return TCHAR
   * @return false
  */
-static int isStdType()
+static bool isStdType()
 {
   switch (cur->id) {
     case TINTEGER:
-      return TINTEGER;
     case TBOOLEAN:
-      return TBOOLEAN;
     case TCHAR:
-      return TCHAR;
+      return true;
     default:
       return false;
   }
@@ -292,8 +363,8 @@ static int isStdType()
  */
 static int parseType()
 {
-  int vartype = 0;
-  if ((vartype = isStdType()) != false) {
+  int vartype = cur->id;
+  if (isStdType()) {
     type = newType(vartype, -1, NULL, NULL);
     consumeToken(cur);
 
@@ -333,12 +404,14 @@ static int parseType()
 static int parseVarNames()
 {
   if (cur->id != TNAME) return ERROR;
+  parameter_num++;
   VAR var = {cur->line_no, cur->str};
   VARNAME_push(&varname_stack, var);
   consumeToken(cur);
   while (cur->id == TCOMMA) {
     consumeToken(cur);
     if (cur->id != TNAME) return error("\nError at %d: Expected variable name", cur->line_no);
+    parameter_num++;
     VAR var = {cur->line_no, cur->str};
     VARNAME_push(&varname_stack, var);
     consumeToken(cur);
@@ -462,14 +535,25 @@ static int parseFactor()
 {
   switch (cur->id) {
     // 変数
-    case TNAME:
+    case TNAME: {
+      ID * entry = lookupAndAddIref(cur->str, cur->line_no);
+      if (entry == NULL) {
+        return error("\nError at %d: Undefined variable name '%s'", cur->line_no, cur->str);
+      }
       if (parseVar() == ERROR) return ERROR;
-      break;
+    } break;
     // 定数
     case TNUMBER:
+      type->ttype = TINTEGER;
+      consumeToken(cur);
+      break;
     case TFALSE:
     case TTRUE:
+      type->ttype = TBOOLEAN;
+      consumeToken(cur);
+      break;
     case TSTRING:
+      type->ttype = TCHAR;
       consumeToken(cur);
       break;
     case TLPAREN:
@@ -486,6 +570,7 @@ static int parseFactor()
     case TINTEGER:
     case TBOOLEAN:
     case TCHAR:
+      type->ttype = cur->id;
       consumeToken(cur);
       if (cur->id != TLPAREN) error("\nError at %d: Expected '('", cur->line_no);
       consumeToken(cur);
@@ -572,6 +657,12 @@ static int parseCall()
   if (cur->id != TCALL) return error("\nError at %d: Expected 'call'", cur->line_no);
   consumeToken(cur);
   if (cur->id != TNAME) return error("\nError at %d: Expected procedure name", cur->line_no);
+  ID * entry = getValueFromHashMap(globalid, cur->str);
+  if (entry == NULL || entry->itp->ttype != TPPROC)
+    return error("\nError at %d: Undefined procedure name", cur->line_no);
+
+  pushIref(&entry->irefp, cur->line_no);
+
   consumeToken(cur);
   if (cur->id == TLPAREN) {
     consumeToken(cur);
@@ -618,9 +709,17 @@ static int parseInput()
   consumeToken(cur);
   if (cur->id == TLPAREN) {
     consumeToken(cur);
+    ID * entry = lookupAndAddIref(cur->str, cur->line_no);
+    if (entry == NULL) {
+      return error("\nError at %d: Undefined variable name '%s'", cur->line_no, cur->str);
+    }
     if (parseVar() == ERROR) return ERROR;
     while (cur->id == TCOMMA) {
       consumeToken(cur);
+      entry = lookupAndAddIref(cur->str, cur->line_no);
+      if (entry == NULL) {
+        return error("\nError at %d: Undefined variable name '%s'", cur->line_no, cur->str);
+      }
       if (parseVar() == ERROR) return ERROR;
     }
     if (cur->id != TRPAREN) return error("\nError at %d: Expected ')'", cur->line_no);
@@ -757,52 +856,74 @@ static int parseCompoundStatement()
 }
 
 /**
- * @brief 仮引数の並びであるかを確かめる
+ * @brief 手続きの仮引数の型リストを登録する関数
  * 
- * @return int 
+ * @param procname 手続き名
+ * @param param_type_list 仮引数の型リストの先頭
+ * @return int 正常終了の場合は NORMAL、エラーの場合は ERROR を返す
+ */
+static int registerProcedureParameters(const char * procname, TYPE * param_type_list)
+{
+  // 手続きの ID を取得
+  ID * procnode = getValueFromHashMap(globalid, procname);
+  if (procnode == NULL) return error("\nError at %d: Undefined procedure name", cur->line_no);
+
+  // 仮引数の型リストを設定
+  procnode->itp->paratp = param_type_list;
+  return NORMAL;
+}
+
+/**
+ * @brief 仮引数の並びを解析する関数
+ * 
+ * @return int 正常終了の場合は NORMAL、エラーの場合は ERROR を返す
  */
 static int parseFormalParamters()
 {
   if (cur->id != TLPAREN) return error("\nError at %d: Expected '('", cur->line_no);
   consumeToken(cur);
 
-  if (parseVarNames()) return error("\nError at %d: Expected variable name", cur->line_no);
+  TYPE * param_type_list = NULL;  // 仮引数の型リストの先頭
+  TYPE * last_param_type = NULL;  // 仮引数の型リストの末尾
 
-  if (cur->id != TCOLON) return error("\nError at %d: Expected ':'", cur->line_no);
-  consumeToken(cur);
-
-  if (parseType() == ERROR) return error("\nError at %d: Expected type", cur->line_no);
-
-  while (!VARNAME_is_empty(&varname_stack)) {
-    VAR var = VARNAME_pop(&varname_stack);
-    if (getValueFromHashMap(*current_id, var.varname) == NULL) {
-      node = newID(var.varname, procname, type, true, var.line_no);
-      insertToHashMap(*current_id, var.varname, node);
-    }
-    // freeID(node);
-  }
-
-  ID * procnode = getValueFromHashMap(*current_id, procname);
-  if (procnode == NULL) return error("\nError at %d: Undefined procedure name", cur->line_no);
-
-  procnode->itp->paratp = type;
-
-  while (cur->id == TSEMI) {
-    consumeToken(cur);
-    if (parseVarNames()) return error("\nError at %d: Expected variable name", cur->line_no);
+  do {
+    if (parseVarNames() == ERROR)
+      return error("\nError at %d: Expected variable name", cur->line_no);
 
     if (cur->id != TCOLON) return error("\nError at %d: Expected ':'", cur->line_no);
     consumeToken(cur);
 
-    if (parseType() == ERROR) return error("\nError at %d: Expected type", cur->line_no);
+    if (!isStdType()) return error("\nError at %d: Expected type", cur->line_no);
+    int vartype = cur->id;
+    consumeToken(cur);
 
-    TYPE * paratp = procnode->itp->paratp;
-    while ((paratp->paratp) != NULL) paratp = paratp->paratp;
-    paratp->paratp = type;
-  }
+    // 仮引数名ごとに型を設定
+    while (!VARNAME_is_empty(&varname_stack)) {
+      VAR var = VARNAME_pop(&varname_stack);
+      TYPE * param_type = newType(vartype, -1, NULL, NULL);  // 新しい型を作成
+
+      // 型リストに追加
+      if (param_type_list == NULL) {
+        param_type_list = param_type;
+      } else {
+        last_param_type->paratp = param_type;
+      }
+      last_param_type = param_type;
+
+      // 仮引数をハッシュマップに登録
+      if (getValueFromHashMap(localid, var.varname) == NULL) {
+        ID * param_id = newID(var.varname, procname, param_type, true, var.line_no);
+        insertToHashMap(localid, var.varname, param_id);
+      }
+    }
+
+  } while (cur->id == TSEMI && (consumeToken(cur), true));
 
   if (cur->id != TRPAREN) return error("\nError at %d: Expected ')'", cur->line_no);
   consumeToken(cur);
+
+  // 仮引数の型リストを登録する関数を呼び出す
+  if (registerProcedureParameters(procname, param_type_list) == ERROR) return ERROR;
 
   return NORMAL;
 }
@@ -822,11 +943,11 @@ static int parseSubProgram()
 
   if (cur->id != TNAME) return error("\nError at %d: Expected procedure name", cur->line_no);
 
-  procname = strdup(cur->str);
-
   type = newType(TPPROC, -1, NULL, NULL);
   node = newID(cur->str, NULL, type, false, cur->line_no);
-  insertToHashMap(*current_id, cur->str, node);
+  insertToHashMap(globalid, cur->str, node);
+
+  procname = strdup(cur->str);
 
   consumeToken(cur);
 
