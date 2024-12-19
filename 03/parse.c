@@ -373,8 +373,6 @@ static int parseVarDeclaration()
     if (value == NULL) {
       node = newID(var.varname, procname, type, false, var.line_no);
       insertToHashMap(*current_id, var.varname, node);
-      printf("hoge");
-
     } else {
       LINE * last_line_ptr = value->irefp;
       while (last_line_ptr != NULL) {
@@ -845,7 +843,6 @@ static int parseSubProgram()
   if (cur->id != TSEMI) return error("\nError at %d: Expected ';'", cur->line_no);
   consumeToken(cur);
   indent_level--;
-  printCrossreferenceTable(localid);
   exitScope();
   return NORMAL;
 }
@@ -910,6 +907,6 @@ void parse(Token * tok)
   current_id = &globalid;
   VARNAME_init(&varname_stack);
   if (parseProgram() == ERROR) error("Parser aborted with error.");
-  // freeHashMap(globalid);
-  // freeHashMap(localid);
+  printCrossreferenceTable(globalid);
+  freeHashMap(globalid);
 }
