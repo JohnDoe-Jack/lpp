@@ -163,6 +163,8 @@ typedef enum {
  */
 #define NORMAL 0
 
+#define HASHSIZE 1000
+
 /**
  * @enum TokenKind
  * @brief brief description
@@ -214,11 +216,28 @@ struct Token
   bool has_space;
 };
 
+typedef enum {
+  //! 整数
+  TPRINT,
+  //! 文字
+  TPCHAR,
+  //! 真偽値
+  TPBOOL,
+  //! 整数型の配列
+  TPARRAYINT,
+  //! 文字型の配列
+  TPARRAYCHAR,
+  //! 真偽値の配列
+  TPARRAYBOOL,
+  //! 手続き
+  TPPROC
+} TYPE_KIND;
+
 typedef struct TYPE TYPE;
 struct TYPE
 {
   //! 型の種類
-  int ttype;
+  TYPE_KIND ttype;
   //! 配列型の場合の配列サイズ
   int arraysize;
   //! 配列型の場合の要素の型
@@ -246,23 +265,6 @@ struct ID
   int defline;
   LINE * irefp;
 };
-
-typedef enum {
-  //! 整数
-  TPRINT,
-  //! 文字
-  TPCHAR,
-  //! 真偽値
-  TPBOOL,
-  //! 整数型の配列
-  TPARRAYINT,
-  //! 文字型の配列
-  TPARRAYCHAR,
-  //! 真偽値の配列
-  TPARRAYBOOL,
-  //! 手続き
-  TPPROC
-} TYPE_KIND;
 
 typedef struct Entry Entry;
 struct Entry
@@ -352,6 +354,18 @@ int removeFromHashMap(const HashMap *, const char *);
     stack->data = NULL;                                                                           \
     stack->capacity = stack->size = 0;                                                            \
   }
+
+// void printType(TYPE *);
+
+// TYPE_KIND decodeIDtoTYPEKIND(int, bool, Token *);
+// TokenID decodeTYPEKINDtoID(int, Token *);
+// int registerProcedureParameters(const char *, TYPE *, HashMap *, Token *);
+// void printCrossreferenceTable(HashMap *);
+// void pushIref(LINE **, int);
+// ID * lookupAndAddIref(const char *, int, HashMap **, HashMap *, HashMap *);
+// void printName(Entry *);
+// void enterScope(HashMap **, HashMap *);
+// void exitScope(char *, HashMap **, HashMap *, HashMap *);
 
 int error(char *, ...);
 

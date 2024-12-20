@@ -1,3 +1,5 @@
+#include <stdbool.h>
+
 #include "lpp.h"
 #define HASHSIZE 1000
 /**
@@ -75,6 +77,57 @@ static int parseInput();
 static int parseOutputFormat();
 static int parseOutputStatement();
 
+static TYPE_KIND decodeIDtoTYPEKIND(int id, bool is_array)
+{
+  if (id == TPROCEDURE) return TPPROC;
+  if (!is_array) {
+    switch (id) {
+      case TINTEGER:
+      case TNUMBER:
+        return TPRINT;
+      case TCHAR:
+      case TSTRING:
+        return TPCHAR;
+      case TTRUE:
+      case TFALSE:
+        return TPBOOL;
+      default:
+        return error("\nError at %d: Expected type", cur->line_no);
+    }
+  } else {
+    switch (id) {
+      case TINTEGER:
+      case TNUMBER:
+        return TPARRAYINT;
+      case TCHAR:
+      case TSTRING:
+        return TPARRAYCHAR;
+      case TTRUE:
+      case TFALSE:
+        return TPARRAYBOOL;
+      default:
+        return error("\nError at %d: Expected type", cur->line_no);
+    }
+  }
+}
+
+static TokenID decodeTYPEKINDtoID(int typekind)
+{
+  switch (typekind) {
+    case TPRINT:
+    case TPARRAYINT:
+      return TINTEGER;
+    case TPCHAR:
+    case TPARRAYCHAR:
+      return TCHAR;
+    case TPBOOL:
+    case TPARRAYBOOL:
+      return TBOOLEAN;
+    default:
+      return error("\nError at %d: Invalid typekind %d", cur->line_no, typekind);
+  }
+}
+
 static void pushIref(LINE ** iref, int refline)
 {
   while (*iref != NULL) {
@@ -114,7 +167,7 @@ static void printType(TYPE * tp)
       printf("(");
       TYPE * param = tp->paratp;
       while (param != NULL) {
-        printf("%s", token_str[param->ttype]);
+        printf("%s", token_str[decodeTYPEKINDtoID(param->ttype)]);
         param = param->paratp;
         if (param != NULL) {
           printf(", ");
@@ -123,7 +176,7 @@ static void printType(TYPE * tp)
       printf(")");
     }
   } else {
-    printf("%s", token_str[tp->ttype]);
+    printf("%s", token_str[decodeTYPEKINDtoID(tp->ttype)]);
     if (tp->arraysize != -1) {
       printf("[%d]", tp->arraysize);
     }
@@ -363,8 +416,9 @@ static bool isStdType()
  */
 static int parseType()
 {
-  int vartype = cur->id;
+  int vartype;
   if (isStdType()) {
+    vartype = decodeIDtoTYPEKIND(cur->id, false);
     type = newType(vartype, -1, NULL, NULL);
     consumeToken(cur);
 
@@ -381,18 +435,16 @@ static int parseType()
     if (cur->id != TOF) return error("\nError at %d: Expected 'of'", cur->line_no);
     consumeToken(cur);
 
-    if ((vartype = isStdType()) == false)
-      return error("\nError at %d: Expected type", cur->line_no);
+    if (!isStdType()) return error("\nError at %d: Expected type", cur->line_no);
+    vartype = decodeIDtoTYPEKIND(cur->id, true);
+
     TYPE * etp = newType(vartype, arraysize, NULL, false);
     type = newType(-1, -1, etp, NULL);
-
     consumeToken(cur);
-
   } else {
     return error("\nError at %d: Expected type", cur->line_no);
   }
 
-  // freeType(type);
   return NORMAL;
 }
 
@@ -420,6 +472,24 @@ static int parseVarNames()
   return NORMAL;
 }
 
+static void processVarNameStack()
+{
+  while (!VARNAME_is_empty(&varname_stack)) {
+    VAR var = VARNAME_pop(&varname_stack);
+    ID * value = getValueFromHashMap(*current_id, var.varname);
+    if (value == NULL) {
+      node = newID(var.varname, procname, type, false, var.line_no);
+      insertToHashMap(*current_id, var.varname, node);
+    } else {
+      LINE * last_line_ptr = value->irefp;
+      while (last_line_ptr != NULL) {
+        last_line_ptr = last_line_ptr->nextlinep;
+      }
+      last_line_ptr->reflinenum = var.line_no;
+    }
+  }
+}
+
 /**
  * @brief 変数宣言部であるかを確かめる
  * 
@@ -440,23 +510,7 @@ static int parseVarDeclaration()
   if (parseType() == ERROR) return ERROR;
 
   if (cur->id != TSEMI) return error("\nError at %d: Expected ';'", cur->line_no);
-  while (!VARNAME_is_empty(&varname_stack)) {
-    VAR var = VARNAME_pop(&varname_stack);
-    ID * value = getValueFromHashMap(*current_id, var.varname);
-    if (value == NULL) {
-      node = newID(var.varname, procname, type, false, var.line_no);
-      insertToHashMap(*current_id, var.varname, node);
-    } else {
-      LINE * last_line_ptr = value->irefp;
-      while (last_line_ptr != NULL) {
-        last_line_ptr = last_line_ptr->nextlinep;
-      }
-      last_line_ptr->reflinenum = var.line_no;
-    }
-
-    // freeID(node);
-  }
-  // freeType(type);
+  processVarNameStack();
   consumeToken(cur);
 
   while (cur->id == TNAME) {
@@ -469,6 +523,7 @@ static int parseVarDeclaration()
     if (parseType() == ERROR) return ERROR;
 
     if (cur->id != TSEMI) return error("\nError at %d: Expected ';'", cur->line_no);
+    processVarNameStack();
     consumeToken(cur);
   }
   indent_level -= 2;
@@ -544,16 +599,16 @@ static int parseFactor()
     } break;
     // 定数
     case TNUMBER:
-      type->ttype = TINTEGER;
+      type->ttype = TPRINT;
       consumeToken(cur);
       break;
     case TFALSE:
     case TTRUE:
-      type->ttype = TBOOLEAN;
+      type->ttype = TPBOOL;
       consumeToken(cur);
       break;
     case TSTRING:
-      type->ttype = TCHAR;
+      type->ttype = TPCHAR;
       consumeToken(cur);
       break;
     case TLPAREN:
@@ -894,13 +949,13 @@ static int parseFormalParamters()
     consumeToken(cur);
 
     if (!isStdType()) return error("\nError at %d: Expected type", cur->line_no);
-    int vartype = cur->id;
+    int vartype = decodeIDtoTYPEKIND(cur->id, false);
     consumeToken(cur);
 
     // 仮引数名ごとに型を設定
     while (!VARNAME_is_empty(&varname_stack)) {
       VAR var = VARNAME_pop(&varname_stack);
-      TYPE * param_type = newType(vartype, -1, NULL, NULL);  // 新しい型を作成
+      TYPE * param_type = newType(vartype, -1, NULL, NULL);
 
       // 型リストに追加
       if (param_type_list == NULL) {

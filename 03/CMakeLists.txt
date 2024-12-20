@@ -7,5 +7,4 @@ if(NOT CMAKE_C_STANDARD)
 endif()
 
 # add_compile_options(-Wall -Wextra -Werror)
-
 add_executable(cr main.c lpp.h parse.c scan.c util.c hashmap.c)
