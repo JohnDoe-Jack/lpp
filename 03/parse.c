@@ -90,9 +90,10 @@ static TYPE_KIND decodeIDtoTYPEKIND(int id, bool is_array)
         return TPCHAR;
       case TTRUE:
       case TFALSE:
+      case TBOOLEAN:
         return TPBOOL;
       default:
-        return error("\nError at %d: Expected type", cur->line_no);
+        return error("\nhogeError at %d: Expected type", cur->line_no);
     }
   } else {
     switch (id) {
@@ -161,30 +162,55 @@ static void printName(Entry * entry)
 static void printType(TYPE * tp)
 {
   if (tp == NULL) return;
-  if (tp->ttype == TPPROC) {
-    printf("procedure");
-    if (tp->paratp != NULL) {
-      printf("(");
-      TYPE * param = tp->paratp;
-      while (param != NULL) {
-        printf("%s", token_str[decodeTYPEKINDtoID(param->ttype)]);
-        param = param->paratp;
-        if (param != NULL) {
-          printf(", ");
+  switch (tp->ttype) {
+    case TPPROC:
+      printf("procedure");
+      if (tp->paratp != NULL) {
+        printf("(");
+        TYPE * param = tp->paratp;
+        while (param != NULL) {
+          printf("%s", token_str[decodeTYPEKINDtoID(param->ttype)]);
+          param = param->paratp;
+          if (param != NULL) {
+            printf(", ");
+          }
         }
+        printf(")");
       }
-      printf(")");
-    }
-  } else {
-    printf("%s", token_str[decodeTYPEKINDtoID(tp->ttype)]);
-    if (tp->arraysize != -1) {
-      printf("[%d]", tp->arraysize);
-    }
-    if (tp->etp != NULL) {
-      printf(" of ");
-      printType(tp->etp);
-    }
+      break;
+    case TPRINT:
+    case TPCHAR:
+    case TPBOOL:
+      printf("%s", token_str[decodeTYPEKINDtoID(tp->ttype)]);
+      break;
+    default:
+      printf("array[%d]of%s", tp->etp->arraysize, token_str[decodeTYPEKINDtoID(tp->etp->ttype)]);
+      break;
   }
+  // if (tp->ttype == TPPROC) {
+  //   printf("procedure");
+  //   if (tp->paratp != NULL) {
+  //     printf("(");
+  //     TYPE * param = tp->paratp;
+  //     while (param != NULL) {
+  //       printf("%s", token_str[decodeTYPEKINDtoID(param->ttype)]);
+  //       param = param->paratp;
+  //       if (param != NULL) {
+  //         printf(", ");
+  //       }
+  //     }
+  //     printf(")");
+  //   }
+  // } else {
+  //   printf("%s", token_str[decodeTYPEKINDtoID(tp->ttype)]);
+  //   if (tp->arraysize != -1) {
+  //     printf("[%d]", tp->arraysize);
+  //   }
+  //   if (tp->etp != NULL) {
+  //     printf(" of ");
+  //     printType(tp->etp);
+  //   }
+  // }
 }
 
 static void printCrossreferenceTable(HashMap * idroot)
@@ -421,7 +447,6 @@ static int parseType()
     vartype = decodeIDtoTYPEKIND(cur->id, false);
     type = newType(vartype, -1, NULL, NULL);
     consumeToken(cur);
-
   } else if (cur->id == TARRAY) {
     int arraysize = 0;
     consumeToken(cur);
@@ -591,10 +616,10 @@ static int parseFactor()
   switch (cur->id) {
     // 変数
     case TNAME: {
-      ID * entry = lookupAndAddIref(cur->str, cur->line_no);
-      if (entry == NULL) {
-        return error("\nError at %d: Undefined variable name '%s'", cur->line_no, cur->str);
-      }
+      // ID * entry = lookupAndAddIref(cur->str, cur->line_no);
+      // if (entry == NULL) {
+      //   return error("\nError at %d: Undefined variable name '%s'", cur->line_no, cur->str);
+      // }
       if (parseVar() == ERROR) return ERROR;
     } break;
     // 定数
@@ -712,11 +737,10 @@ static int parseCall()
   if (cur->id != TCALL) return error("\nError at %d: Expected 'call'", cur->line_no);
   consumeToken(cur);
   if (cur->id != TNAME) return error("\nError at %d: Expected procedure name", cur->line_no);
-  ID * entry = getValueFromHashMap(globalid, cur->str);
-  if (entry == NULL || entry->itp->ttype != TPPROC)
-    return error("\nError at %d: Undefined procedure name", cur->line_no);
+  ID * entry = lookupAndAddIref(cur->str, cur->line_no);
 
-  pushIref(&entry->irefp, cur->line_no);
+  // if (entry == NULL || entry->itp->ttype != TPPROC)
+  //   return error("\nError at %d: Undefined procedure name %s", cur->line_no);
 
   consumeToken(cur);
   if (cur->id == TLPAREN) {
@@ -741,6 +765,8 @@ static int parseCall()
 static int parseVar()
 {
   if (cur->id != TNAME) return error("\nError at %d: Expected variable name", cur->line_no);
+  ID * entry = lookupAndAddIref(cur->str, cur->line_no);
+
   consumeToken(cur);
 
   if (cur->id == TLSQPAREN) {
@@ -764,17 +790,9 @@ static int parseInput()
   consumeToken(cur);
   if (cur->id == TLPAREN) {
     consumeToken(cur);
-    ID * entry = lookupAndAddIref(cur->str, cur->line_no);
-    if (entry == NULL) {
-      return error("\nError at %d: Undefined variable name '%s'", cur->line_no, cur->str);
-    }
     if (parseVar() == ERROR) return ERROR;
     while (cur->id == TCOMMA) {
       consumeToken(cur);
-      entry = lookupAndAddIref(cur->str, cur->line_no);
-      if (entry == NULL) {
-        return error("\nError at %d: Undefined variable name '%s'", cur->line_no, cur->str);
-      }
       if (parseVar() == ERROR) return ERROR;
     }
     if (cur->id != TRPAREN) return error("\nError at %d: Expected ')'", cur->line_no);
