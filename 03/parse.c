@@ -118,9 +118,10 @@ static TYPE_KIND decodeIDtoTYPEKIND(int id, bool is_array)
         return TPARRAYCHAR;
       case TTRUE:
       case TFALSE:
+      case TBOOLEAN:
         return TPARRAYBOOL;
       default:
-        return error("\nError at %d: Expected type", cur->line_no);
+        return error("\nhogeError at %d: Expected type", cur->line_no);
     }
   }
 }
