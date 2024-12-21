@@ -57,7 +57,7 @@ static const char * token_str[NUMOFTOKEN + 1] = {
 static void printIndent();
 static void printToken(const Token *);
 static void consumeToken(Token *);
-static int parseType();
+static TYPE_KIND parseType();
 static int parseVarNames();
 static int parseVarDeclaration();
 static int parseTerm();
@@ -430,7 +430,7 @@ static bool isStdType()
  * 
  * @return int 
  */
-static int parseType()
+static TYPE_KIND parseType()
 {
   int vartype;
   if (isStdType()) {
@@ -460,7 +460,7 @@ static int parseType()
     return error("\nError at %d: Expected type", cur->line_no);
   }
 
-  return NORMAL;
+  return vartype;
 }
 
 /**
@@ -492,6 +492,9 @@ static void processVarNameStack()
   while (!VARNAME_is_empty(&varname_stack)) {
     VAR var = VARNAME_pop(&varname_stack);
     ID * value = getValueFromHashMap(*current_id, var.varname);
+    if (strcmp(value->name, var.varname) == 0 && *current_id == globalid) {
+      error("\nError at %d: Redefinition of '%s'", cur->line_no, var.varname);
+    }
     if (value == NULL) {
       node = newID(var.varname, procname, type, false, var.line_no);
       insertToHashMap(*current_id, var.varname, node);

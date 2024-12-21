@@ -155,7 +155,7 @@ typedef enum {
  * @def ERROR
  * @brief 解析途中で失敗したことを示す定数
  */
-#define ERROR 1
+#define ERROR -1
 
 /**
  * @def NORMAL
