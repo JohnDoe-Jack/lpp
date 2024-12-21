@@ -5,11 +5,11 @@
       "name": "C/C++ Runner: Debug Session",
       "type": "cppdbg",
       "request": "launch",
-      "args": ["/home/iwasakim/workspace/lpp/test/sample29p.mpl"],
+      "args": ["/home/iwasakim/workspace/lpp/test/sample35.mpl"],
       "stopAtEntry": false,
       "externalConsole": false,
       "cwd": "/home/iwasakim/workspace/lpp",
-      "program": "/home/iwasakim/workspace/lpp/build/Debug/outDebug",
+      "program": "/home/iwasakim/workspace/lpp/03/build/cr",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [

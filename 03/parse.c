@@ -1,4 +1,6 @@
 #include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
 
 #include "lpp.h"
 #define HASHSIZE 1000
@@ -76,6 +78,17 @@ static int parseVar();
 static int parseInput();
 static int parseOutputFormat();
 static int parseOutputStatement();
+
+static TYPE * copyType(TYPE * src)
+{
+  if (!src) return NULL;
+  TYPE * dst = malloc(sizeof(TYPE));
+  *dst = *src;
+  dst->is_freed = false;
+  dst->etp = copyType(src->etp);
+  dst->paratp = copyType(src->paratp);
+  return dst;
+}
 
 static TYPE_KIND decodeIDtoTYPEKIND(int id, bool is_array)
 {
@@ -187,30 +200,6 @@ static void printType(TYPE * tp)
       printf("array[%d]of%s", tp->etp->arraysize, token_str[decodeTYPEKINDtoID(tp->etp->ttype)]);
       break;
   }
-  // if (tp->ttype == TPPROC) {
-  //   printf("procedure");
-  //   if (tp->paratp != NULL) {
-  //     printf("(");
-  //     TYPE * param = tp->paratp;
-  //     while (param != NULL) {
-  //       printf("%s", token_str[decodeTYPEKINDtoID(param->ttype)]);
-  //       param = param->paratp;
-  //       if (param != NULL) {
-  //         printf(", ");
-  //       }
-  //     }
-  //     printf(")");
-  //   }
-  // } else {
-  //   printf("%s", token_str[decodeTYPEKINDtoID(tp->ttype)]);
-  //   if (tp->arraysize != -1) {
-  //     printf("[%d]", tp->arraysize);
-  //   }
-  //   if (tp->etp != NULL) {
-  //     printf(" of ");
-  //     printType(tp->etp);
-  //   }
-  // }
 }
 
 static void printCrossreferenceTable(HashMap * idroot)
@@ -333,7 +322,7 @@ static ID * newID(const char * name, const char * _procname, TYPE * itp, int isp
     id->procname = strdup(_procname);
   else
     id->procname = NULL;
-  id->itp = itp;
+  id->itp = copyType(itp);
   id->ispara = ispara;
   id->irefp = NULL;
   id->defline = defline;
@@ -739,8 +728,12 @@ static int parseCall()
   if (cur->id != TNAME) return error("\nError at %d: Expected procedure name", cur->line_no);
   ID * entry = lookupAndAddIref(cur->str, cur->line_no);
 
-  // if (entry == NULL || entry->itp->ttype != TPPROC)
-  //   return error("\nError at %d: Undefined procedure name %s", cur->line_no);
+  if (procname != NULL && strcmp(procname, cur->str) == 0) {
+    return error("\nError at %d: Recursive call", cur->line_no);
+  }
+
+  if (entry == NULL || entry->itp->ttype != TPPROC)
+    return error("\nError at %d: Undefined procedure name %s", cur->line_no);
 
   consumeToken(cur);
   if (cur->id == TLPAREN) {

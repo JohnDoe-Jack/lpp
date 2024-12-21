@@ -457,6 +457,6 @@ Token * tokenizeFile(char * path)
   char * p = readFile(path);
 
   if (!p) return NULL;
-
+  printf("Name|Type|Define|Reference\n");  // lpptestが1行目を捨てる糞仕様の為無駄に1行追加した
   return tokenize(p);
 }

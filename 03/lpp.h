@@ -355,18 +355,6 @@ int removeFromHashMap(const HashMap *, const char *);
     stack->capacity = stack->size = 0;                                                            \
   }
 
-// void printType(TYPE *);
-
-// TYPE_KIND decodeIDtoTYPEKIND(int, bool, Token *);
-// TokenID decodeTYPEKINDtoID(int, Token *);
-// int registerProcedureParameters(const char *, TYPE *, HashMap *, Token *);
-// void printCrossreferenceTable(HashMap *);
-// void pushIref(LINE **, int);
-// ID * lookupAndAddIref(const char *, int, HashMap **, HashMap *, HashMap *);
-// void printName(Entry *);
-// void enterScope(HashMap **, HashMap *);
-// void exitScope(char *, HashMap **, HashMap *, HashMap *);
-
 int error(char *, ...);
 
 Token * tokenizeFile(char *);
