@@ -60,10 +60,10 @@ static void consumeToken(Token *);
 static TYPE_KIND parseType();
 static int parseVarNames();
 static int parseVarDeclaration();
-static int parseTerm();
-static int parseSimpleExpression();
-static int parseExpression();
-static int parseFactor();
+static TYPE_KIND parseTerm();
+static TYPE_KIND parseSimpleExpression();
+static TYPE_KIND parseExpression();
+static TYPE_KIND parseFactor();
 static int parseStatement();
 static int parseCompoundStatement();
 static int parseFormalParamters();
@@ -74,7 +74,7 @@ static int parseAssignment();
 static int parseCondition();
 static int parseIteration();
 static int parseCall();
-static int parseVar();
+static TYPE_KIND parseVar();
 static int parseInput();
 static int parseOutputFormat();
 static int parseOutputStatement();
@@ -97,7 +97,7 @@ static TYPE_KIND decodeIDtoTYPEKIND(int id, bool is_array)
     switch (id) {
       case TINTEGER:
       case TNUMBER:
-        return TPRINT;
+        return TPINT;
       case TCHAR:
       case TSTRING:
         return TPCHAR;
@@ -106,7 +106,7 @@ static TYPE_KIND decodeIDtoTYPEKIND(int id, bool is_array)
       case TBOOLEAN:
         return TPBOOL;
       default:
-        return error("\nhogeError at %d: Expected type", cur->line_no);
+        return error("\nError at %d: Expected type", cur->line_no);
     }
   } else {
     switch (id) {
@@ -121,15 +121,15 @@ static TYPE_KIND decodeIDtoTYPEKIND(int id, bool is_array)
       case TBOOLEAN:
         return TPARRAYBOOL;
       default:
-        return error("\nhogeError at %d: Expected type", cur->line_no);
+        return error("\nError at %d: Expected type", cur->line_no);
     }
   }
 }
 
-static TokenID decodeTYPEKINDtoID(int typekind)
+static TokenID decodeTYPEKINDtoID(const int typekind)
 {
   switch (typekind) {
-    case TPRINT:
+    case TPINT:
     case TPARRAYINT:
       return TINTEGER;
     case TPCHAR:
@@ -139,7 +139,8 @@ static TokenID decodeTYPEKINDtoID(int typekind)
     case TPARRAYBOOL:
       return TBOOLEAN;
     default:
-      return error("\nError at %d: Invalid typekind %d", cur->line_no, typekind);
+      error("\nError at %d: Invalid typekind %d", cur->line_no, typekind);
+      return TERROR;
   }
 }
 
@@ -192,7 +193,7 @@ static void printType(TYPE * tp)
         printf(")");
       }
       break;
-    case TPRINT:
+    case TPINT:
     case TPCHAR:
     case TPBOOL:
       printf("%s", token_str[decodeTYPEKINDtoID(tp->ttype)]);
@@ -305,15 +306,15 @@ static TYPE * newType(TYPE_KIND ttype, int arraysize, TYPE * etp, TYPE * paratp)
   return tp;
 }
 
-static void freeType(TYPE * tp)
-{
-  if (tp == NULL || tp->is_freed) return;  // NULL チェックと解放済みチェック
+// static void freeType(TYPE * tp)
+// {
+//   if (tp == NULL || tp->is_freed) return;  // NULL チェックと解放済みチェック
 
-  tp->is_freed = true;  // 解放済みに設定
-  if (tp->etp != NULL) freeType(tp->etp);
-  if (tp->paratp != NULL) freeType(tp->paratp);
-  free(tp);
-}
+//   tp->is_freed = true;  // 解放済みに設定
+//   if (tp->etp != NULL) freeType(tp->etp);
+//   if (tp->paratp != NULL) freeType(tp->paratp);
+//   free(tp);
+// }
 
 static ID * newID(const char * name, const char * _procname, TYPE * itp, int ispara, int defline)
 {
@@ -330,12 +331,12 @@ static ID * newID(const char * name, const char * _procname, TYPE * itp, int isp
   return id;
 }
 
-static void freeID(ID * id)
-{
-  free(id->name);
-  free(id->procname);
-  free(id);
-}
+// static void freeID(ID * id)
+// {
+//   free(id->name);
+//   free(id->procname);
+//   free(id);
+// }
 
 /**
  * @brief トークンを標準出力して現在注目しているトークンの位置を一つ進める
@@ -354,7 +355,7 @@ static void consumeToken(Token * tok)
  * @return true 
  * @return false 
  */
-static bool isparseRelOp()
+static bool isRelOp()
 {
   switch (cur->id) {
     case TEQUAL:
@@ -444,6 +445,8 @@ static TYPE_KIND parseType()
     consumeToken(cur);
     if (cur->id != TNUMBER) return error("\nError at %d: Expected number", cur->line_no);
     arraysize = cur->num;
+    if (arraysize == 0)
+      return error("\nError at %d: Array size must be greater than 0", cur->line_no);
     consumeToken(cur);
     if (cur->id != TRSQPAREN) return error("\nError at %d: Expected ']'", cur->line_no);
     consumeToken(cur);
@@ -492,9 +495,7 @@ static void processVarNameStack()
   while (!VARNAME_is_empty(&varname_stack)) {
     VAR var = VARNAME_pop(&varname_stack);
     ID * value = getValueFromHashMap(*current_id, var.varname);
-    if (strcmp(value->name, var.varname) == 0 && *current_id == globalid) {
-      error("\nError at %d: Redefinition of '%s'", cur->line_no, var.varname);
-    }
+
     if (value == NULL) {
       node = newID(var.varname, procname, type, false, var.line_no);
       insertToHashMap(*current_id, var.varname, node);
@@ -525,7 +526,7 @@ static int parseVarDeclaration()
   if (cur->id != TCOLON) return error("\nError at %d: Expected ':'", cur->line_no);
   consumeToken(cur);
 
-  if (parseType() == ERROR) return ERROR;
+  if (parseType() == TPRERROR) return ERROR;
 
   if (cur->id != TSEMI) return error("\nError at %d: Expected ';'", cur->line_no);
   processVarNameStack();
@@ -538,7 +539,7 @@ static int parseVarDeclaration()
     if (cur->id != TCOLON) return error("\nError at %d: Expected ':'", cur->line_no);
     consumeToken(cur);
 
-    if (parseType() == ERROR) return ERROR;
+    if (parseType() == TPRERROR) return ERROR;
 
     if (cur->id != TSEMI) return error("\nError at %d: Expected ';'", cur->line_no);
     processVarNameStack();
@@ -552,110 +553,153 @@ static int parseVarDeclaration()
 /**
  * @brief 項であるかを確かめる
  * 
- * @return int 
+ * @return TYPE_KIND 
  */
-static int parseTerm()
+static TYPE_KIND parseTerm()
 {
-  if (parseFactor() == ERROR) return ERROR;
+  TYPE_KIND term_type;
+  if ((term_type = parseFactor()) == TPRERROR) return ERROR;
 
   while (isMulOp()) {
+    TYPE_KIND mulop = cur->id;
     consumeToken(cur);
-    if (parseFactor() == ERROR) return ERROR;
+    TYPE_KIND factor_type;
+    if ((factor_type = parseFactor()) == TPRERROR) return ERROR;
+    if (mulop == TAND && term_type != TPBOOL) {
+      error(
+        "\nError at %d: Expected boolean but got %s", cur->line_no,
+        token_str[decodeTYPEKINDtoID(term_type)]);
+      return TPRERROR;
+    } else if ((mulop == TSTAR || mulop == TDIV) && term_type != TPINT) {
+      error(
+        "\nError at %d: Expected integer but got %s", cur->line_no,
+        token_str[decodeTYPEKINDtoID(term_type)]);
+      return TPRERROR;
+    }
   }
-  return NORMAL;
+  return term_type;
 }
 
 /**
  * @brief 単純式であるかを確かめる
  * 
- * @return int 
+ * @return TYPE_KIND 
  */
-static int parseSimpleExpression()
+static TYPE_KIND parseSimpleExpression()
 {
-  if (cur->id == TPLUS || cur->id == TMINUS) consumeToken(cur);
+  TYPE_KIND simple_expression_type;
+  bool must_integer = false;
+  if (cur->id == TPLUS || cur->id == TMINUS) {
+    consumeToken(cur);
+    must_integer = true;
+  }
 
-  if (parseTerm() == ERROR) return ERROR;
+  if ((simple_expression_type = parseTerm()) == TPRERROR) return TPRERROR;
+  if (must_integer) {
+    if (simple_expression_type != TPINT)
+      return error("\nError at %d: Expected integer", cur->line_no);
+    simple_expression_type = TPINT;
+  }
 
   while (isAddOp()) {
+    TYPE_KIND addop = cur->id;
+    if (cur->id == TOR)
+      addop = TPBOOL;
+    else
+      addop = TPINT;
     consumeToken(cur);
-    if (parseTerm() == ERROR) return ERROR;
+    TYPE_KIND term_type;
+    if ((term_type = parseTerm()) == TPRERROR) return TPRERROR;
+    if (addop != term_type) {
+      return error(
+        "\nError at %d: Type mismatch. Expected %s", cur->line_no,
+        token_str[decodeTYPEKINDtoID(addop)]);
+    }
   }
-  return NORMAL;
+  return simple_expression_type;
 }
 
 /**
  * @brief 式であるかを確かめる
  * 
- * @return int 
+ * @return TYPE_KIND 
  */
-static int parseExpression()
+static TYPE_KIND parseExpression()
 {
-  if (parseSimpleExpression() == ERROR) return ERROR;
-  while (isparseRelOp()) {
+  TYPE_KIND expression_type;
+  if ((expression_type = parseSimpleExpression()) == TPRERROR) return TPRERROR;
+  while (isRelOp()) {
     consumeToken(cur);
-
-    if (parseSimpleExpression() == ERROR) return ERROR;
+    if (parseSimpleExpression() == TPRERROR) return TPRERROR;
+    expression_type = TPBOOL;
   }
-  return NORMAL;
+  return expression_type;
 }
 
 /**
  * @brief 因子であるかを確かめる
  * 
- * @return int 
+ * @return TYPE_KIND 
  */
-static int parseFactor()
+static TYPE_KIND parseFactor()
 {
+  TYPE_KIND factor_type, expression_type;
   switch (cur->id) {
     // 変数
     case TNAME: {
-      // ID * entry = lookupAndAddIref(cur->str, cur->line_no);
-      // if (entry == NULL) {
-      //   return error("\nError at %d: Undefined variable name '%s'", cur->line_no, cur->str);
-      // }
-      if (parseVar() == ERROR) return ERROR;
+      if ((factor_type = parseVar()) == TPRERROR) return TPRERROR;
     } break;
     // 定数
     case TNUMBER:
-      type->ttype = TPRINT;
+      factor_type = type->ttype = TPINT;
       consumeToken(cur);
       break;
     case TFALSE:
     case TTRUE:
-      type->ttype = TPBOOL;
+      factor_type = type->ttype = TPBOOL;
       consumeToken(cur);
       break;
     case TSTRING:
-      type->ttype = TPCHAR;
+      factor_type = type->ttype = TPCHAR;
       consumeToken(cur);
       break;
     case TLPAREN:
       consumeToken(cur);
-      if (parseExpression() == ERROR) return ERROR;
+      if ((factor_type = parseExpression()) == TPRERROR) return TPRERROR;
       if (cur->id != TRPAREN) return error("\nError at %d: Expected ')'", cur->line_no);
       consumeToken(cur);
       break;
     case TNOT:
       consumeToken(cur);
-      if (parseFactor() == ERROR) return ERROR;
+      if ((factor_type = parseFactor()) == TPRERROR) return TPRERROR;
+      if (factor_type != TPBOOL) return error("\nError at %d: Expected boolean", cur->line_no);
       break;
-    //
     case TINTEGER:
     case TBOOLEAN:
     case TCHAR:
-      type->ttype = cur->id;
+      factor_type = type->ttype = decodeIDtoTYPEKIND(cur->id, false);
       consumeToken(cur);
-      if (cur->id != TLPAREN) error("\nError at %d: Expected '('", cur->line_no);
+      if (cur->id != TLPAREN) {
+        error("\nError at %d: Expected '('", cur->line_no);
+        return TPRERROR;
+      }
       consumeToken(cur);
-      if (parseExpression() == ERROR) return ERROR;
-      if (cur->id != TRPAREN) error("\nError at %d: Expected ')'", cur->line_no);
+      if ((expression_type = parseExpression()) == TPRERROR) return TPRERROR;
+      if (expression_type != TPINT && expression_type != TPCHAR && expression_type != TPBOOL) {
+        error("\nError at %d: Expected integer, char or boolean", cur->line_no);
+        return TPRERROR;
+      }
+      if (cur->id != TRPAREN) {
+        error("\nError at %d: Expected ')'", cur->line_no);
+        return TPRERROR;
+      }
       consumeToken(cur);
       break;
     default:
       return error("\nError at %d: Expected factor", cur->line_no);
       break;
   }
-  return NORMAL;
+  return factor_type;
 }
 
 /**
@@ -665,12 +709,12 @@ static int parseFactor()
  */
 static int parseAssignment()
 {
-  if (parseVar() == ERROR) return ERROR;
+  if (parseVar() == TPRERROR) return ERROR;
 
   if (cur->id != TASSIGN) return error("\nError at %d: Expected ':='", cur->line_no);
   consumeToken(cur);
 
-  if (parseExpression() == ERROR) return ERROR;
+  if (parseExpression() == TPRERROR) return ERROR;
   return NORMAL;
 }
 
@@ -681,9 +725,14 @@ static int parseAssignment()
  */
 static int parseCondition()
 {
+  TYPE_KIND condition_type;
   if (cur->id != TIF) return error("\nError at %d: Expected 'if'", cur->line_no);
   consumeToken(cur);
-  if (parseExpression() == ERROR) return ERROR;
+  if ((condition_type = parseExpression()) == TPRERROR) return ERROR;
+  if (condition_type != TPBOOL && condition_type != TPARRAYBOOL)
+    return error(
+      "\nError at %d: Expected boolean. But got %s", cur->line_no,
+      token_str[decodeTYPEKINDtoID(condition_type)]);
   if (cur->id != TTHEN) return error("\nError at %d: Expected 'then'", cur->line_no);
   consumeToken(cur);
   at_bol = true;
@@ -712,7 +761,7 @@ static int parseIteration()
 {
   if (cur->id != TWHILE) return error("\nError at %d: Expected 'while'", cur->line_no);
   consumeToken(cur);
-  if (parseExpression() == ERROR) return ERROR;
+  if (parseExpression() == TPRERROR) return ERROR;
   if (cur->id != TDO) return error("\nError at %d: Expected 'do'", cur->line_no);
   consumeToken(cur);
   iteration_level++;
@@ -736,20 +785,50 @@ static int parseCall()
     return error("\nError at %d: Recursive call", cur->line_no);
   }
 
-  if (entry == NULL || entry->itp->ttype != TPPROC)
-    return error("\nError at %d: Undefined procedure name %s", cur->line_no);
+  if (entry == NULL || entry->itp->ttype != TPPROC) {
+    return error("\nError at %d: Undefined procedure name %s", cur->line_no, cur->str);
+  }
 
   consumeToken(cur);
+
+  TYPE * param = entry->itp->paratp;
+
   if (cur->id == TLPAREN) {
     consumeToken(cur);
-    // 式の並び
-    if (parseExpression() == ERROR) return ERROR;
-    while (cur->id == TCOMMA) {
-      consumeToken(cur);
-      if (parseExpression() == ERROR) return ERROR;
+    if (cur->id != TRPAREN) {
+      TYPE_KIND arg_type = parseExpression();
+      if (arg_type == TPRERROR) return ERROR;
+      if (param == NULL) {
+        return error("\nError at %d: Too many arguments for procedure %s", cur->line_no, cur->str);
+      }
+      if (arg_type != param->ttype) {
+        return error(
+          "\nError at %d: Type mismatch in arguments for procedure %s", cur->line_no, cur->str);
+      }
+      param = param->paratp;
+
+      while (cur->id == TCOMMA) {
+        consumeToken(cur);
+        arg_type = parseExpression();
+        if (arg_type == TPRERROR) return ERROR;
+        if (param == NULL) {
+          return error(
+            "\nError at %d: Too many arguments for procedure %s", cur->line_no, entry->name);
+        }
+        if (arg_type != param->ttype) {
+          return error(
+            "\nError at %d: Type mismatch in arguments for procedure %s", cur->line_no,
+            entry->name);
+        }
+        param = param->paratp;
+      }
     }
     if (cur->id != TRPAREN) return error("\nError at %d: Expected ')'", cur->line_no);
     consumeToken(cur);
+  }
+
+  if (param != NULL) {
+    return error("\nError at %d: Too few arguments for procedure %s", cur->line_no, entry->name);
   }
   return NORMAL;
 }
@@ -757,22 +836,31 @@ static int parseCall()
 /**
  * @brief 変数であるかを確かめる
  * 
- * @return int 
+ * @return TYPE_KIND 
  */
-static int parseVar()
+static TYPE_KIND parseVar()
 {
   if (cur->id != TNAME) return error("\nError at %d: Expected variable name", cur->line_no);
   ID * entry = lookupAndAddIref(cur->str, cur->line_no);
+  if (entry == NULL)
+    return error("\nError at %d: Undefined variable name '%s'", cur->line_no, cur->str);
 
   consumeToken(cur);
 
   if (cur->id == TLSQPAREN) {
+    TYPE_KIND index_type;
     consumeToken(cur);
-    if (parseExpression() == ERROR) return ERROR;
+    if ((index_type = parseExpression()) == TPRERROR) return ERROR;
+    if (index_type != TPINT)
+      return error(
+        "\nError at %d: Expected integer. But got %s", cur->line_no,
+        token_str[decodeTYPEKINDtoID(index_type)]);
     if (cur->id != TRSQPAREN) return error("\nError at %d: Expected ']'", cur->line_no);
     consumeToken(cur);
+    return entry->itp->etp->ttype;
+  } else {
+    return entry->itp->ttype;
   }
-  return NORMAL;
 }
 
 /**
@@ -786,11 +874,16 @@ static int parseInput()
     return error("\nError at %d: Expected 'read' or 'readln'", cur->line_no);
   consumeToken(cur);
   if (cur->id == TLPAREN) {
+    TYPE_KIND var_type;
     consumeToken(cur);
-    if (parseVar() == ERROR) return ERROR;
+    if ((var_type = parseVar()) == TPRERROR) return ERROR;
+    if (var_type != TPINT && var_type != TPCHAR)
+      return error("\nError at %d: Expected integer", cur->line_no);
     while (cur->id == TCOMMA) {
       consumeToken(cur);
-      if (parseVar() == ERROR) return ERROR;
+      if ((var_type = parseVar()) == TPRERROR) return ERROR;
+      if (var_type != TPINT && var_type != TPCHAR)
+        return error("\nError at %d: Expected integer", cur->line_no);
     }
     if (cur->id != TRPAREN) return error("\nError at %d: Expected ')'", cur->line_no);
     consumeToken(cur);
@@ -805,9 +898,14 @@ static int parseInput()
  */
 static int parseOutputFormat()
 {
+  TYPE_KIND expression_type;
   if (cur->id == TSTRING && cur->len != 1) {
     consumeToken(cur);
-  } else if (parseExpression() != ERROR) {
+  } else if ((expression_type = parseExpression()) != TPRERROR) {
+    if (expression_type == TPRERROR)
+      return error(
+        "\nError at %d: Expected 'integer', 'char' or 'boolean' but got %s", cur->line_no,
+        token_str[decodeTYPEKINDtoID(expression_type)]);
     if (cur->id != TCOLON) return NORMAL;
     consumeToken(cur);
     if (cur->id != TNUMBER) return error("\nError at %d: Expected number", cur->line_no);
@@ -1097,7 +1195,7 @@ void parse(Token * tok)
   globalid = newHashMap(HASHSIZE);
   current_id = &globalid;
   VARNAME_init(&varname_stack);
+  printf("Name|Type|Define|Reference\n");
   if (parseProgram() == ERROR) error("Parser aborted with error.");
   printCrossreferenceTable(globalid);
-  freeHashMap(globalid);
 }

@@ -89,7 +89,7 @@ typedef enum {
   TMINUS,
   //! 乗算
   TSTAR,
-  //! 除算
+  //! 等号
   TEQUAL,
   //! 不等号
   TNOTEQ,
@@ -124,7 +124,9 @@ typedef enum {
   //! write
   TWRITE,
   //! break
-  TBREAK
+  TBREAK,
+  //! エラー
+  TERROR
 } TokenID;
 
 /**
@@ -218,7 +220,7 @@ struct Token
 
 typedef enum {
   //! 整数
-  TPRINT,
+  TPINT,
   //! 文字
   TPCHAR,
   //! 真偽値
@@ -230,7 +232,9 @@ typedef enum {
   //! 真偽値の配列
   TPARRAYBOOL,
   //! 手続き
-  TPPROC
+  TPPROC,
+  //! エラー
+  TPRERROR
 } TYPE_KIND;
 
 typedef struct TYPE TYPE;
@@ -355,7 +359,7 @@ int removeFromHashMap(const HashMap *, const char *);
     stack->capacity = stack->size = 0;                                                            \
   }
 
-int error(char *, ...);
+TYPE_KIND error(char *, ...);
 
 Token * tokenizeFile(char *);
 void parse(Token *);

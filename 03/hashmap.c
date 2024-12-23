@@ -1,5 +1,11 @@
 #include "lpp.h"
 
+/**
+ * @brief 新しいハッシュマップを作成する
+ * 
+ * @param size 
+ * @return HashMap* 
+ */
 HashMap * newHashMap(int size)
 {
   HashMap * hashmap;
@@ -21,6 +27,13 @@ HashMap * newHashMap(int size)
   return hashmap;
 }
 
+/**
+ * @brief ハッシュ値を計算する
+ * 
+ * @param key 
+ * @param size 
+ * @return unsigned int 
+ */
 static unsigned int hash(const char * key, const int size)
 {
   unsigned int hash = 0;
@@ -30,6 +43,13 @@ static unsigned int hash(const char * key, const int size)
   return hash % size;
 }
 
+/**
+ * @brief ハッシュマップにエントリを追加する
+ * 
+ * @param hashmap 
+ * @param key 
+ * @param value 
+ */
 void insertToHashMap(const HashMap * hashmap, const char * key, ID * value)
 {
   unsigned int index = hash(key, hashmap->size);
@@ -45,7 +65,6 @@ void insertToHashMap(const HashMap * hashmap, const char * key, ID * value)
 
   entry = (Entry *)malloc(sizeof(Entry));
   if (entry == NULL) {
-    // メモリ確保に失敗した場合の処理
     fprintf(stderr, "Failed to allocate memory for new entry\n");
     exit(1);
   }
@@ -56,6 +75,13 @@ void insertToHashMap(const HashMap * hashmap, const char * key, ID * value)
   hashmap->entries[index] = entry;
 }
 
+/**
+ * @brief ハッシュマップから指定されたキーを持つエントリを取得する
+ * 
+ * @param hashmap 
+ * @param key 
+ * @return ID* 
+ */
 ID * getValueFromHashMap(const HashMap * hashmap, const char * key)
 {
   unsigned int index = hash(key, hashmap->size);
@@ -71,6 +97,11 @@ ID * getValueFromHashMap(const HashMap * hashmap, const char * key)
   return NULL;
 }
 
+/**
+ * @brief エントリーを解放する
+ * 
+ * @param entry 
+ */
 static void freeEntry(Entry * entry)
 {
   while (entry != NULL) {
@@ -82,6 +113,11 @@ static void freeEntry(Entry * entry)
   }
 }
 
+/**
+ * @brief ハッシュマップを解放する
+ * 
+ * @param hashmap 
+ */
 void freeHashMap(HashMap * hashmap)
 {
   for (int i = 0; i < hashmap->size; i++) {
@@ -91,6 +127,13 @@ void freeHashMap(HashMap * hashmap)
   free(hashmap);
 }
 
+/**
+ * @brief ハッシュマップから指定されたキーを持つエントリを削除する
+ * 
+ * @param hashmap 
+ * @param key 
+ * @return int 
+ */
 int removeFromHashMap(const HashMap * hashmap, const char * key)
 {
   unsigned int index = hash(key, hashmap->size);

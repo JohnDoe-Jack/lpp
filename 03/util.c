@@ -7,7 +7,7 @@
  * 
  * @param fmt エラーメッセージ
  */
-int error(char * fmt, ...)
+TYPE_KIND error(char * fmt, ...)
 {
   va_list ap;
   va_start(ap, fmt);

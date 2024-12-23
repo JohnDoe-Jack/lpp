@@ -1,5 +1,5 @@
 #!/bin/bash
-rm *.gcda *.gcno *.o *.gcov pp
+rm *.gcda *.gcno *.o *.gcov cr
 
 gcc -coverage -c *.c *h
 gcc -coverage -o pp *.o
