@@ -1,7 +1,3 @@
-#include <stdbool.h>
-#include <stdio.h>
-#include <string.h>
-
 #include "lpp.h"
 #define HASHSIZE 1000
 /**
@@ -42,6 +38,8 @@ VARNAME varname_stack;
 
 TYPE * type = NULL;
 ID * node = NULL;
+
+char * crossref_buf = NULL;
 
 //! 定義された行番号を格納する変数
 
@@ -500,11 +498,10 @@ static void processVarNameStack()
       node = newID(var.varname, procname, type, false, var.line_no);
       insertToHashMap(*current_id, var.varname, node);
     } else {
-      LINE * last_line_ptr = value->irefp;
-      while (last_line_ptr != NULL) {
-        last_line_ptr = last_line_ptr->nextlinep;
+      if (strcmp(var.varname, value->name) == 0) {
+        error("\nError at %d: Variable %s already defined", var.line_no, var.varname);
+        exit(1);
       }
-      last_line_ptr->reflinenum = var.line_no;
     }
   }
 }
@@ -1111,6 +1108,9 @@ static int parseSubProgram()
 
   if (cur->id != TNAME) return error("\nError at %d: Expected procedure name", cur->line_no);
 
+  if (getValueFromHashMap(globalid, cur->str) != NULL)
+    return error("\nError at %d: Procedure name %s already defined", cur->line_no, cur->str);
+
   type = newType(TPPROC, -1, NULL, NULL);
   node = newID(cur->str, NULL, type, false, cur->line_no);
   insertToHashMap(globalid, cur->str, node);
@@ -1196,6 +1196,9 @@ void parse(Token * tok)
   current_id = &globalid;
   VARNAME_init(&varname_stack);
   printf("Name|Type|Define|Reference\n");
-  if (parseProgram() == ERROR) error("Parser aborted with error.");
+  if (parseProgram() == ERROR) {
+    error("Parser aborted with error.");
+    return;
+  }
   printCrossreferenceTable(globalid);
 }

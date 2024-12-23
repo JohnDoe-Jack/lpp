@@ -197,7 +197,7 @@ struct Token
   //! トークンの種類
   TokenKind kind;
   //! トークンのID
-  int id;
+  TokenID id;
   //! 次のトークン
   Token * next;
   //! トークンの長さ

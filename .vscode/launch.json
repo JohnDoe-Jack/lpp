@@ -5,7 +5,7 @@
       "name": "C/C++ Runner: Debug Session",
       "type": "cppdbg",
       "request": "launch",
-      "args": ["/home/iwasakim/workspace/lpp/test/sample35.mpl"],
+      "args": ["/home/iwasakim/workspace/lpp/test/sample18.mpl"],
       "stopAtEntry": false,
       "externalConsole": false,
       "cwd": "/home/iwasakim/workspace/lpp",
