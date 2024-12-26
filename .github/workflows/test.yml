@@ -25,6 +25,7 @@ jobs:
           python3 -m pip install --user pipx
           python3 -m pipx ensurepath
           pipx install git+https://github.com/f0reachARR/lpp_test.git --force
+          mkdir -p /home/runner/.config/lpp
 
       - name: execute lpp test
         working-directory: ${{github.workspace}}/1/
