@@ -248,8 +248,6 @@ struct TYPE
   TYPE * etp;
   //! 手続き型の場合の仮引数の型リスト
   TYPE * paratp;
-  //! 解放済みフラグ
-  bool is_freed;
 };
 
 typedef struct LINE LINE;
@@ -291,6 +289,10 @@ ID * getValueFromHashMap(const HashMap *, const char *);
 void freeHashMap(HashMap *);
 int removeFromHashMap(const HashMap *, const char *);
 
+/**
+ * @brief 独自型を含めた任意の型に対応するためのStackマクロ
+ * @def DECLARE_STACK
+ */
 #define DECLARE_STACK(TYPENAME, ELEMENT_TYPE)                                                     \
   typedef struct                                                                                  \
   {                                                                                               \

@@ -77,17 +77,29 @@ static int parseInput();
 static int parseOutputFormat();
 static int parseOutputStatement();
 
+/**
+ * @brief 型情報をコピー渡しをする
+ * 
+ * @param src コピー元
+ * @return TYPE* 
+ */
 static TYPE * copyType(TYPE * src)
 {
   if (!src) return NULL;
   TYPE * dst = malloc(sizeof(TYPE));
   *dst = *src;
-  dst->is_freed = false;
   dst->etp = copyType(src->etp);
   dst->paratp = copyType(src->paratp);
   return dst;
 }
 
+/**
+ * @brief トークンのIDを型を表す定数に変換する
+ * 
+ * @param id トークンのID
+ * @param is_array 配列かどうか
+ * @return TYPE_KIND integer,char,bool型もしくはその配列型を表す定数
+ */
 static TYPE_KIND decodeIDtoTYPEKIND(int id, bool is_array)
 {
   if (id == TPROCEDURE) return TPPROC;
@@ -124,6 +136,12 @@ static TYPE_KIND decodeIDtoTYPEKIND(int id, bool is_array)
   }
 }
 
+/**
+ * @brief 型を表す定数をトークンのIDに変換する。トークンのIDからtoken_strの文字列を引き出したいときに使う。
+ * 
+ * @param typekind 型を表す定数
+ * @return TokenID トークンID
+ */
 static TokenID decodeTYPEKINDtoID(const int typekind)
 {
   switch (typekind) {
@@ -142,6 +160,12 @@ static TokenID decodeTYPEKINDtoID(const int typekind)
   }
 }
 
+/**
+ * @brief 参照されたときの行番号を追加する
+ * 
+ * @param iref TYPE構造体に含まれるirefpへのポインタ
+ * @param refline 参照されたときの行番号
+ */
 static void pushIref(LINE ** iref, int refline)
 {
   while (*iref != NULL) {
@@ -152,6 +176,14 @@ static void pushIref(LINE ** iref, int refline)
   (*iref)->nextlinep = NULL;
 }
 
+/**
+ * @brief 現在のスコープの範囲内に変数が存在するかを調べる。
+ * もしローカルなスコープに変数が存在する場合はグローバルなスコープを探索する。
+ * 見つかったら参照された行番号を登録してエントリを返す。
+ * @param name 探したい変数名
+ * @param line_no 変数が参照された行番号
+ * @return ID* 変数が見つかった場合はそのエントリを返す。見つからなかった場合はNULLを返す。
+ */
 static ID * lookupAndAddIref(const char * name, int line_no)
 {
   ID * entry = NULL;
@@ -165,13 +197,23 @@ static ID * lookupAndAddIref(const char * name, int line_no)
   return entry;
 }
 
+/**
+ * @brief クロスリファレンス表のName項目を出力する
+ * 
+ * @param entry 出力したいエントリ
+ */
 static void printName(Entry * entry)
 {
   printf("%s", entry->key);
   if (entry->value->procname != NULL) printf(":%s", entry->value->procname);
-  printf("|");
+  printf("|\t");
 }
 
+/**
+ * @brief クロスリファレンス表のType項目を出力する
+ * 
+ * @param tp 出力したい型情報
+ */
 static void printType(TYPE * tp)
 {
   if (tp == NULL) return;
@@ -202,26 +244,56 @@ static void printType(TYPE * tp)
   }
 }
 
+/**
+ * @brief クロスリファレンス表をキーでソートするための比較関数
+ * 
+ * @param a 
+ * @param b 
+ * @return int 
+ */
+static int compareEntryKeys(const void * a, const void * b)
+{
+  return strcmp((*(Entry **)a)->key, (*(Entry **)b)->key);
+}
+
+/**
+ * @brief クロスリファレンス表を標準出力する。出力するまえにキーをソートして名前順にして出力する。
+ * 
+ * @param idroot 出力したいハッシュマップ
+ */
 static void printCrossreferenceTable(HashMap * idroot)
 {
+  int count = 0;
   for (int i = 0; i < idroot->size; i++) {
-    Entry * entry = idroot->entries[i];
-    while (entry != NULL) {
-      // クロスリファレンス表の出力
-      printName(entry);
-      printType(entry->value->itp);
-      printf("|%d|", entry->value->defline);
-      while (entry->value->irefp != NULL) {
-        printf("%d", entry->value->irefp->reflinenum);
-        entry->value->irefp = entry->value->irefp->nextlinep;
-        if (entry->value->irefp != NULL) {
-          printf(",");
-        }
-      }
-      printf("\n");
-      entry = entry->next;
+    for (Entry * entry = idroot->entries[i]; entry; entry = entry->next) {
+      count++;
     }
   }
+  Entry ** arr = malloc(sizeof(Entry *) * count);
+  int idx = 0;
+  for (int i = 0; i < idroot->size; i++) {
+    for (Entry * entry = idroot->entries[i]; entry; entry = entry->next) {
+      arr[idx++] = entry;
+    }
+  }
+
+  qsort(arr, count, sizeof(Entry *), compareEntryKeys);
+
+  for (int i = 0; i < count; i++) {
+    Entry * entry = arr[i];
+    printName(entry);
+    printType(entry->value->itp);
+    printf("|%d|", entry->value->defline);
+    while (entry->value->irefp != NULL) {
+      printf("%d", entry->value->irefp->reflinenum);
+      entry->value->irefp = entry->value->irefp->nextlinep;
+      if (entry->value->irefp != NULL) {
+        printf(",");
+      }
+    }
+    printf("\n");
+  }
+  free(arr);
 }
 
 /**
@@ -293,6 +365,15 @@ static void printToken(const Token * tok)
   at_bol = false;
 }
 
+/**
+ * @brief 型情報を表す構造体を生成する
+ * 
+ * @param ttype 
+ * @param arraysize 
+ * @param etp 
+ * @param paratp 
+ * @return TYPE* 
+ */
 static TYPE * newType(TYPE_KIND ttype, int arraysize, TYPE * etp, TYPE * paratp)
 {
   TYPE * tp = malloc(sizeof(TYPE));
@@ -300,20 +381,19 @@ static TYPE * newType(TYPE_KIND ttype, int arraysize, TYPE * etp, TYPE * paratp)
   tp->arraysize = arraysize;
   tp->etp = etp;
   tp->paratp = paratp;
-  tp->is_freed = false;
   return tp;
 }
 
-// static void freeType(TYPE * tp)
-// {
-//   if (tp == NULL || tp->is_freed) return;  // NULL チェックと解放済みチェック
-
-//   tp->is_freed = true;  // 解放済みに設定
-//   if (tp->etp != NULL) freeType(tp->etp);
-//   if (tp->paratp != NULL) freeType(tp->paratp);
-//   free(tp);
-// }
-
+/**
+ * @brief クロスリファレンス表に登録するID構造体を生成する
+ * 
+ * @param name 
+ * @param _procname 
+ * @param itp 
+ * @param ispara 
+ * @param defline 
+ * @return ID* 
+ */
 static ID * newID(const char * name, const char * _procname, TYPE * itp, int ispara, int defline)
 {
   ID * id = malloc(sizeof(ID));
@@ -328,13 +408,6 @@ static ID * newID(const char * name, const char * _procname, TYPE * itp, int isp
   id->defline = defline;
   return id;
 }
-
-// static void freeID(ID * id)
-// {
-//   free(id->name);
-//   free(id->procname);
-//   free(id);
-// }
 
 /**
  * @brief トークンを標準出力して現在注目しているトークンの位置を一つ進める
@@ -488,6 +561,10 @@ static int parseVarNames()
   return NORMAL;
 }
 
+/**
+ * @brief 変数名をスタックしたものから取り出してクロスリファレンス表に登録する
+ * 
+ */
 static void processVarNameStack()
 {
   while (!VARNAME_is_empty(&varname_stack)) {

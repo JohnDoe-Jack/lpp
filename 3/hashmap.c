@@ -3,8 +3,8 @@
 /**
  * @brief 新しいハッシュマップを作成する
  * 
- * @param size 
- * @return HashMap* 
+ * @param size ハッシュマップのサイズ
+ * @return HashMap* 作成されたハッシュマップへのポインタ
  */
 HashMap * newHashMap(int size)
 {
@@ -30,8 +30,8 @@ HashMap * newHashMap(int size)
 /**
  * @brief ハッシュ値を計算する
  * 
- * @param key 
- * @param size 
+ * @param key ハッシュ値を計算する文字列
+ * @param size ハッシュマップのサイズ
  * @return unsigned int 
  */
 static unsigned int hash(const char * key, const int size)
@@ -46,9 +46,9 @@ static unsigned int hash(const char * key, const int size)
 /**
  * @brief ハッシュマップにエントリを追加する
  * 
- * @param hashmap 
- * @param key 
- * @param value 
+ * @param hashmap 挿入されるハッシュマップ
+ * @param key キー
+ * @param value キーに対応するバリュー
  */
 void insertToHashMap(const HashMap * hashmap, const char * key, ID * value)
 {
@@ -78,9 +78,9 @@ void insertToHashMap(const HashMap * hashmap, const char * key, ID * value)
 /**
  * @brief ハッシュマップから指定されたキーを持つエントリを取得する
  * 
- * @param hashmap 
- * @param key 
- * @return ID* 
+ * @param hashmap 取得したいエントリが含まれるハッシュマップ
+ * @param key 検索するキー
+ * @return ID* 取得したエントリーの要素
  */
 ID * getValueFromHashMap(const HashMap * hashmap, const char * key)
 {
@@ -100,7 +100,7 @@ ID * getValueFromHashMap(const HashMap * hashmap, const char * key)
 /**
  * @brief エントリーを解放する
  * 
- * @param entry 
+ * @param entry 開放するエントリ
  */
 static void freeEntry(Entry * entry)
 {
@@ -116,7 +116,7 @@ static void freeEntry(Entry * entry)
 /**
  * @brief ハッシュマップを解放する
  * 
- * @param hashmap 
+ * @param hashmap 開放するハッシュマップ
  */
 void freeHashMap(HashMap * hashmap)
 {
@@ -125,39 +125,4 @@ void freeHashMap(HashMap * hashmap)
   }
   free(hashmap->entries);
   free(hashmap);
-}
-
-/**
- * @brief ハッシュマップから指定されたキーを持つエントリを削除する
- * 
- * @param hashmap 
- * @param key 
- * @return int 
- */
-int removeFromHashMap(const HashMap * hashmap, const char * key)
-{
-  unsigned int index = hash(key, hashmap->size);
-  Entry * entry = hashmap->entries[index];
-
-  Entry * pred = NULL;
-  while (entry != NULL) {
-    if (strcmp(entry->key, key) == 0) {
-      break;
-    }
-    pred = entry;
-    entry = entry->next;
-  }
-
-  if (entry == NULL) return -1;
-  if (pred == NULL) {
-    hashmap->entries[index] = entry->next;
-  } else {
-    pred->next = entry->next;
-  }
-
-  free(entry->key);
-  free(entry->value);
-  free(entry);
-
-  return 0;
 }
