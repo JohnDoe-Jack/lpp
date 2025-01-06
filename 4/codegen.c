@@ -16,7 +16,7 @@ static void println(char * fmt, ...)
   fprintf(output_file, "\n");
 }
 
-void outlib(void)
+static void outlib(void)
 {
   fprintf(
     output_file,
@@ -261,4 +261,10 @@ void outlib(void)
     "OBUF            DS      257\n"
     "IBUF            DS      257\n"
     "RPBBUF          DC      0\n");
+}
+
+void codegen(Token * tok, FILE * output)
+{
+  output_file = output;
+  outlib();
 }

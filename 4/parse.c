@@ -314,7 +314,7 @@ static void enterScope()
  */
 static void exitScope()
 {
-  printCrossreferenceTable(localid);
+  // printCrossreferenceTable(localid);
   procname = NULL;
   freeHashMap(*current_id);
   current_id = &globalid;
@@ -1272,10 +1272,10 @@ void parse(Token * tok)
   globalid = newHashMap(HASHSIZE);
   current_id = &globalid;
   VARNAME_init(&varname_stack);
-  printf("Name|Type|Define|Reference\n");
+  // printf("Name|Type|Define|Reference\n");
   if (parseProgram() == ERROR) {
     error("Parser aborted with error.");
     return;
   }
-  printCrossreferenceTable(globalid);
+  // printCrossreferenceTable(globalid);
 }

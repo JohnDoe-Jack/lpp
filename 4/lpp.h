@@ -366,6 +366,5 @@ TYPE_KIND error(char *, ...);
 Token * tokenizeFile(char *);
 void parse(Token *);
 
-void outlib(void);
-void codegen(Token *);
+void codegen(Token *, FILE *);
 #endif
