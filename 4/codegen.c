@@ -296,6 +296,7 @@ static int pProgramst()
     return error("Error at %d: Keyword 'program' is not found", cur->line_no);
   consumeToken();
   println("%%%s\tSTART\tL0001", cur->str);
+  consumeToken();
 
   return NORMAL;
 }
