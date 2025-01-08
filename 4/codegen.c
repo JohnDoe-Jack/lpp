@@ -6,6 +6,7 @@
   outlib関数，または，内部のfprintfを自身のプログラムにコピーして利用しても良い．
 */
 static FILE * output_file;
+Token * cur;
 
 static void println(char * fmt, ...)
 {
@@ -15,6 +16,8 @@ static void println(char * fmt, ...)
   va_end(ap);
   fprintf(output_file, "\n");
 }
+
+static void consumeToken() { cur = cur->next; }
 
 static void outlib(void)
 {
@@ -263,8 +266,43 @@ static void outlib(void)
     "RPBBUF          DC      0\n");
 }
 
+static int getLabelNum()
+{
+  static int labelcounter = 1;
+  return labelcounter++;
+}
+
+static void genLabel(int label) { println("L%03d", label); }
+
+static void genCode(char * opc, char * opr) { println("\t%s\t%s", opc, opr); }
+
+static void genCodeLabel(char * opc, char * opr, int label)
+{
+  println("\t%s\t%sL%04d", opc, opr, label);
+}
+
+static int pIfst()
+{
+  int label1, label2;
+  if (cur->id != TIF) return error("Error at %d: Keyword 'if' is not found", cur->line_no);
+  consumeToken();
+
+  return NORMAL;
+}
+
+static int pProgramst()
+{
+  if (cur->id != TPROGRAM)
+    return error("Error at %d: Keyword 'program' is not found", cur->line_no);
+  consumeToken();
+  println("%%%s\tSTART\tL0001", cur->str);
+
+  return NORMAL;
+}
+
 void codegen(Token * tok, FILE * output)
 {
   output_file = output;
+  cur = tok;
   outlib();
 }
