@@ -197,6 +197,26 @@ static ID * lookupAndAddIref(const char * name, int line_no)
   return entry;
 }
 
+static void appendCrossRef(const char * fmt, ...)
+{
+  va_list ap;
+  va_list apcopy;
+  va_start(ap, fmt);
+  va_copy(apcopy, ap);
+  int needed = vsnprintf(NULL, 0, fmt, ap) + 1;
+  va_end(ap);
+
+  if (!crossref_buf) {
+    crossref_buf = malloc(needed);
+    crossref_buf[0] = '\0';
+  } else {
+    crossref_buf = realloc(crossref_buf, strlen(crossref_buf) + needed);
+  }
+
+  vsprintf(crossref_buf + strlen(crossref_buf), fmt, apcopy);
+  va_end(apcopy);
+}
+
 /**
  * @brief クロスリファレンス表のName項目を出力する
  * 
@@ -204,9 +224,13 @@ static ID * lookupAndAddIref(const char * name, int line_no)
  */
 static void printName(Entry * entry)
 {
-  printf("%s", entry->key);
-  if (entry->value->procname != NULL) printf(":%s", entry->value->procname);
-  printf("|\t");
+  if (entry->value->ispara) {
+    appendCrossRef("$$%s", entry->key);
+  } else {
+    appendCrossRef("$%s", entry->key);
+  }
+  if (entry->value->procname != NULL) appendCrossRef("%%%s", entry->value->procname);
+  appendCrossRef("|\t");
 }
 
 /**
@@ -219,27 +243,28 @@ static void printType(TYPE * tp)
   if (tp == NULL) return;
   switch (tp->ttype) {
     case TPPROC:
-      printf("procedure");
+      appendCrossRef("procedure");
       if (tp->paratp != NULL) {
-        printf("(");
+        appendCrossRef("(");
         TYPE * param = tp->paratp;
         while (param != NULL) {
-          printf("%s", token_str[decodeTYPEKINDtoID(param->ttype)]);
+          appendCrossRef("%s", token_str[decodeTYPEKINDtoID(param->ttype)]);
           param = param->paratp;
           if (param != NULL) {
-            printf(", ");
+            appendCrossRef(", ");
           }
         }
-        printf(")");
+        appendCrossRef(")");
       }
       break;
     case TPINT:
     case TPCHAR:
     case TPBOOL:
-      printf("%s", token_str[decodeTYPEKINDtoID(tp->ttype)]);
+      appendCrossRef("%s", token_str[decodeTYPEKINDtoID(tp->ttype)]);
       break;
     default:
-      printf("array[%d]of%s", tp->etp->arraysize, token_str[decodeTYPEKINDtoID(tp->etp->ttype)]);
+      appendCrossRef(
+        "array[%d]of%s", tp->etp->arraysize, token_str[decodeTYPEKINDtoID(tp->etp->ttype)]);
       break;
   }
 }
@@ -283,15 +308,15 @@ static void printCrossreferenceTable(HashMap * idroot)
     Entry * entry = arr[i];
     printName(entry);
     printType(entry->value->itp);
-    printf("|%d|", entry->value->defline);
+    appendCrossRef("|%d|", entry->value->defline);
     while (entry->value->irefp != NULL) {
-      printf("%d", entry->value->irefp->reflinenum);
+      appendCrossRef("%d", entry->value->irefp->reflinenum);
       entry->value->irefp = entry->value->irefp->nextlinep;
       if (entry->value->irefp != NULL) {
-        printf(",");
+        appendCrossRef(",");
       }
     }
-    printf("\n");
+    appendCrossRef("\n");
   }
   free(arr);
 }
@@ -314,7 +339,7 @@ static void enterScope()
  */
 static void exitScope()
 {
-  // printCrossreferenceTable(localid);
+  printCrossreferenceTable(localid);
   procname = NULL;
   freeHashMap(*current_id);
   current_id = &globalid;
@@ -1277,5 +1302,7 @@ void parse(Token * tok)
     error("Parser aborted with error.");
     return;
   }
-  // printCrossreferenceTable(globalid);
+  printCrossreferenceTable(globalid);
 }
+
+char * getCrossrefBuf() { return crossref_buf; }

@@ -365,6 +365,7 @@ TYPE_KIND error(char *, ...);
 
 Token * tokenizeFile(char *);
 void parse(Token *);
+char * getCrossrefBuf();
 
 void codegen(Token *, FILE *);
 #endif

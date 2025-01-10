@@ -8,6 +8,15 @@
 static FILE * output_file;
 Token * cur;
 
+typedef struct Symbol Symbol;
+
+struct Symbol
+{
+  char * name;
+  char * type;
+  int defline;
+};
+
 static void println(char * fmt, ...)
 {
   va_list ap;
@@ -15,6 +24,46 @@ static void println(char * fmt, ...)
   vfprintf(output_file, fmt, ap);
   va_end(ap);
   fprintf(output_file, "\n");
+}
+
+static Symbol * parseSymbolLine(const char * line)
+{
+  Symbol * sym = (Symbol *)calloc(1, sizeof(Symbol));
+
+  char buf[256];
+  strncpy(buf, line, sizeof(buf) - 1);
+  buf[sizeof(buf) - 1] = '\0';
+
+  char * keyPart = strtok(buf, "|");
+  char * typePart = strtok(NULL, "|");
+  char * deflinePart = strtok(NULL, "|");
+
+  while (*keyPart == ' ' || *keyPart == '\t') keyPart++;
+  while (*typePart == ' ' || *typePart == '\t') typePart++;
+
+  sym->name = strdup(keyPart);
+  sym->type = strdup(typePart);
+
+  if (deflinePart) {
+    sym->defline = atoi(deflinePart);
+  }
+  return sym;
+}
+
+static Symbol ** parseSymbols(const char ** lines, int lineCount, int * outSymbolCount)
+{
+  Symbol ** list = NULL;
+  int count = 0;
+  for (int i = 0; i < lineCount; i++) {
+    // 空行などを除外
+    if (!lines[i] || strlen(lines[i]) == 0) continue;
+    // 行をパースしてSymbolオブジェクトを作成
+    Symbol * sym = parseSymbolLine(lines[i]);
+    list = (Symbol **)realloc(list, sizeof(Symbol *) * (count + 1));
+    list[count++] = sym;
+  }
+  *outSymbolCount = count;
+  return list;
 }
 
 static void consumeToken() { cur = cur->next; }
@@ -290,13 +339,28 @@ static int pIfst()
   return NORMAL;
 }
 
+static int pVarDeclaration() { return NORMAL; }
+
+static int pBlock()
+{
+  if (cur->id == TVAR) {
+    consumeToken();
+    pVarDeclaration();
+  }
+
+  return NORMAL;
+}
+
 static int pProgramst()
 {
   if (cur->id != TPROGRAM)
     return error("Error at %d: Keyword 'program' is not found", cur->line_no);
   consumeToken();
-  println("%%%s\tSTART\tL0001", cur->str);
+
+  println("%%%s\tSTART\tL%04d", cur->str, getLabelNum());
   consumeToken();
+
+  pBlock();
 
   return NORMAL;
 }
@@ -305,5 +369,6 @@ void codegen(Token * tok, FILE * output)
 {
   output_file = output;
   cur = tok;
+  pProgramst();
   outlib();
 }
