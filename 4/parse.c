@@ -40,6 +40,7 @@ TYPE * type = NULL;
 ID * node = NULL;
 
 char * crossref_buf = NULL;
+SymbolBuffer * symbol_buf = NULL;
 
 //! 定義された行番号を格納する変数
 
@@ -224,13 +225,16 @@ static void appendCrossRef(const char * fmt, ...)
  */
 static void printName(Entry * entry)
 {
+  appendCrossRef("%s", entry->key);
+  if (entry->value->procname != NULL) appendCrossRef(":%s", entry->value->procname);
+  appendCrossRef("|");
   if (entry->value->ispara) {
     appendCrossRef("$$%s", entry->key);
   } else {
     appendCrossRef("$%s", entry->key);
   }
   if (entry->value->procname != NULL) appendCrossRef("%%%s", entry->value->procname);
-  appendCrossRef("|\t");
+  appendCrossRef("|");
 }
 
 /**
@@ -303,7 +307,7 @@ static void printCrossreferenceTable(HashMap * idroot)
   }
 
   qsort(arr, count, sizeof(Entry *), compareEntryKeys);
-
+  symbol_buf->line_count += count;
   for (int i = 0; i < count; i++) {
     Entry * entry = arr[i];
     printName(entry);
@@ -660,7 +664,7 @@ static TYPE_KIND parseTerm()
   if ((term_type = parseFactor()) == TPRERROR) return ERROR;
 
   while (isMulOp()) {
-    TYPE_KIND mulop = cur->id;
+    TokenID mulop = cur->id;
     consumeToken(cur);
     TYPE_KIND factor_type;
     if ((factor_type = parseFactor()) == TPRERROR) return ERROR;
@@ -1296,13 +1300,14 @@ void parse(Token * tok)
   cur = tok;
   globalid = newHashMap(HASHSIZE);
   current_id = &globalid;
+  symbol_buf = malloc(sizeof(SymbolBuffer));
   VARNAME_init(&varname_stack);
-  // printf("Name|Type|Define|Reference\n");
   if (parseProgram() == ERROR) {
     error("Parser aborted with error.");
     return;
   }
   printCrossreferenceTable(globalid);
+  symbol_buf->buf = strdup(crossref_buf);
 }
 
-char * getCrossrefBuf() { return crossref_buf; }
+SymbolBuffer * getCrossrefBuf() { return symbol_buf; }

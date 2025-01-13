@@ -1,21 +1,46 @@
-/* Output library module */
+#include <stdbool.h>
+
 #include "lpp.h"
-/* 
-  FILE *cslfp; 
-  cslfpはCASLII出力を格納するファイルポインタ．各自の環境に合わせて書き換える．
-  outlib関数，または，内部のfprintfを自身のプログラムにコピーして利用しても良い．
-*/
 static FILE * output_file;
 Token * cur;
+
+//! 定義されたプロシージャの名前を格納する変数
+static char * procname = NULL;
+
+//! 副プログラムの仮引数のカウント用変数
+
+DECLARE_STACK(PARAMETER, char *);
+PARAMETER parameter_stack;
 
 typedef struct Symbol Symbol;
 
 struct Symbol
 {
-  char * name;
+  char * key;
+  char * label;
   char * type;
-  int defline;
+  char * addr;
+  int arraysize;
 };
+
+Symbol * symbols;
+
+static int pCompoundStatement();
+static int pStatement();
+static int pExpression();
+
+static Symbol getSymbol(char * key)
+{
+  for (int i = 0; symbols[i].key != NULL; i++) {
+    if (strcmp(symbols[i].key, key) == 0) {
+      return symbols[i];
+    }
+  }
+  Symbol s;
+  s.key = NULL;
+  fflush(stdout);
+  return s;
+}
 
 static void println(char * fmt, ...)
 {
@@ -26,44 +51,24 @@ static void println(char * fmt, ...)
   fprintf(output_file, "\n");
 }
 
-static Symbol * parseSymbolLine(const char * line)
+static Symbol * parseSymbols(const SymbolBuffer * buf)
 {
-  Symbol * sym = (Symbol *)calloc(1, sizeof(Symbol));
-
-  char buf[256];
-  strncpy(buf, line, sizeof(buf) - 1);
-  buf[sizeof(buf) - 1] = '\0';
-
-  char * keyPart = strtok(buf, "|");
-  char * typePart = strtok(NULL, "|");
-  char * deflinePart = strtok(NULL, "|");
-
-  while (*keyPart == ' ' || *keyPart == '\t') keyPart++;
-  while (*typePart == ' ' || *typePart == '\t') typePart++;
-
-  sym->name = strdup(keyPart);
-  sym->type = strdup(typePart);
-
-  if (deflinePart) {
-    sym->defline = atoi(deflinePart);
+  Symbol * symbols = malloc(sizeof(Symbol) * buf->line_count);
+  char * p = buf->buf;
+  for (int i = 0; i < buf->line_count; i++) {
+    symbols[i].key = p;
+    while (*p != '|') p++;
+    *p++ = '\0';
+    symbols[i].label = p;
+    while (*p != '|') p++;
+    *p++ = '\0';
+    symbols[i].type = p;
+    while (*p != '|') p++;
+    *p++ = '\0';
+    while (*p != '\n') p++;
+    p++;
   }
-  return sym;
-}
-
-static Symbol ** parseSymbols(const char ** lines, int lineCount, int * outSymbolCount)
-{
-  Symbol ** list = NULL;
-  int count = 0;
-  for (int i = 0; i < lineCount; i++) {
-    // 空行などを除外
-    if (!lines[i] || strlen(lines[i]) == 0) continue;
-    // 行をパースしてSymbolオブジェクトを作成
-    Symbol * sym = parseSymbolLine(lines[i]);
-    list = (Symbol **)realloc(list, sizeof(Symbol *) * (count + 1));
-    list[count++] = sym;
-  }
-  *outSymbolCount = count;
-  return list;
+  return symbols;
 }
 
 static void consumeToken() { cur = cur->next; }
@@ -325,27 +330,275 @@ static void genLabel(int label) { println("L%03d", label); }
 
 static void genCode(char * opc, char * opr) { println("\t%s\t%s", opc, opr); }
 
-static void genCodeLabel(char * opc, char * opr, int label)
+static bool isArray(Symbol key) { return key.type[0] == 'a'; }
+
+static int getArraySize(char * type)
 {
-  println("\t%s\t%sL%04d", opc, opr, label);
+  const char * p = strchr(type, '[');
+  p++;
+  char buf[64];
+  int i = 0;
+  while (*p != ']') {
+    buf[i++] = *p;
+    p++;
+  }
+  buf[i] = '\0';
+  return atoi(buf);
 }
 
-static int pIfst()
+static int pVarNames(bool isparam)
 {
-  int label1, label2;
-  if (cur->id != TIF) return error("Error at %d: Keyword 'if' is not found", cur->line_no);
+  Symbol symbol;
+  char key[256];
+  if (procname != NULL) {
+    snprintf(key, sizeof(key), "%s:%s", cur->str, procname);
+  } else {
+    strcpy(key, cur->str);
+  }
+  symbol = getSymbol(key);
+  if (isArray(symbol)) {
+    if (isparam) PARAMETER_push(&parameter_stack, symbol.label);
+    println("%s\n\tDS\t%d", symbol.label, getArraySize(symbol.type));
+  } else {
+    if (symbol.label == NULL) {
+      return error("Error at %d: Undefined variable %s", cur->line_no, cur->str);
+    }
+    if (isparam) PARAMETER_push(&parameter_stack, symbol.label);
+    println("%s\n\tDC\t0", symbol.label);
+  }
   consumeToken();
+  while (cur->id == TCOMMA) {
+    consumeToken();
+    if (procname != NULL) {
+      snprintf(key, sizeof(key), "%s:%s", cur->str, procname);
+    } else {
+      strcpy(key, cur->str);
+    }
+    symbol = getSymbol(key);
+    if (isArray(symbol)) {
+      if (isparam) PARAMETER_push(&parameter_stack, symbol.label);
+      println("%s\n\tDS\t%d", symbol.label, getArraySize(symbol.type));
+    } else {
+      if (symbol.label == NULL) {
+        return error("Error at %d: Undefined variable %s", cur->line_no, cur->str);
+      }
+      if (isparam) PARAMETER_push(&parameter_stack, symbol.label);
+      println("%s\n\tDC\t0", symbol.label);
+    }
+  }
+  return NORMAL;
+}
+
+static int pVarDeclaration()
+{
+  pVarNames(false);
+  while (cur->id != TSEMI) consumeToken();
+  consumeToken();
+
+  while (cur->id == TNAME) {
+    pVarNames(false);
+    while (cur->id != TSEMI) consumeToken();
+    consumeToken();
+  }
 
   return NORMAL;
 }
 
-static int pVarDeclaration() { return NORMAL; }
+static int pVar()
+{
+  Symbol symbol;
+  if (!procname) {
+    char key[256];
+    snprintf(key, sizeof(key), "%s:%s", cur->str, procname);
+    symbol = getSymbol(key);
+  } else {
+    symbol = getSymbol(cur->str);
+  }
+
+  return NORMAL;
+}
+
+static int pAssignment()
+{
+  if (pVar() == ERROR) return ERROR;
+
+  if (cur->id != TASSIGN) return error("Error at %d: Expected ':='", cur->line_no);
+  consumeToken();
+  if (pExpression() == ERROR) return ERROR;
+
+  return NORMAL;
+}
+
+static int pExpression() { return NORMAL; }
+
+static int pCondition()
+{
+  int label1, label2;
+  if (cur->id != TIF) return error("Error at %d: Expected 'if'", cur->line_no);
+  consumeToken();
+  if (pExpression() == ERROR) return ERROR;
+
+  label1 = getLabelNum();
+  genCode("CPA", "GR1,GR0");
+  println("\tJZE\tL%04d", label1);
+  if (cur->id != TTHEN) return error("Error at %d: Expected 'then'", cur->line_no);
+  consumeToken();
+  if (pStatement() == ERROR) return ERROR;
+  if (cur->id == TELSE) {
+    label2 = getLabelNum();
+    println("\tJUMP\tL%04d", label2);
+    genLabel(label1);
+    consumeToken();
+    if (pStatement() == ERROR) return ERROR;
+    genLabel(label2);
+  } else {
+    genLabel(label1);
+  }
+  return NORMAL;
+}
+
+static int pIteration() { return NORMAL; }
+
+static int pCall() { return NORMAL; }
+
+static int pInput() { return NORMAL; }
+
+static int pOutputStatement() { return NORMAL; }
+
+static int pStatement()
+{
+  switch (cur->id) {
+      // 代入文
+    case TNAME:
+      if (pAssignment() == ERROR) return ERROR;
+      break;
+    // 分岐文
+    case TIF:
+      if (pCondition() == ERROR) return ERROR;
+      break;
+    // 繰り返し文
+    case TWHILE:
+      if (pIteration() == ERROR) return ERROR;
+      break;
+    // 脱出文
+    case TBREAK:
+
+      consumeToken();
+      break;
+    // 手続き呼び出し文
+    case TCALL:
+      if (pCall() == ERROR) return ERROR;
+      break;
+    // 戻り文
+    case TRETURN:
+      consumeToken();
+      if (procname != NULL) {
+        println("\tRET");
+      } else {
+        genCode("CALL", "FLUSH");
+        println("\tSVC\t0");
+      }
+      break;
+    // 入力文
+    case TREAD:
+    case TREADLN:
+      if (pInput() == ERROR) return ERROR;
+      break;
+    // 出力文
+    case TWRITE:
+    case TWRITELN:
+      if (pOutputStatement() == ERROR) return ERROR;
+      break;
+    // 複合文
+    case TBEGIN:
+      if (pCompoundStatement() == ERROR) return ERROR;
+      break;
+
+    default:
+      // 空文
+      break;
+  }
+
+  return NORMAL;
+}
+
+static int pCompoundStatement()
+{
+  if (cur->id != TBEGIN) return error("Error at %d: Expected 'begin'", cur->line_no);
+  consumeToken();
+
+  pStatement();
+  while (cur->id == TSEMI) {
+    consumeToken();
+    pStatement();
+  }
+
+  if (cur->id != TEND) return error("Error at %d: Expected 'end'", cur->line_no);
+  consumeToken();
+
+  println("\tRET");
+  return NORMAL;
+}
+
+static int pFormalParameters()
+{
+  if (cur->id != TLPAREN) return error("Error at %d: Expected '('", cur->line_no);
+  consumeToken();
+  if (cur->kind != TK_IDENT) return error("Error at %d: Expected variable name", cur->line_no);
+  pVarNames(true);
+  while (cur->id != TSEMI && cur->id != TRPAREN) consumeToken();
+
+  while (cur->id == TSEMI || cur->id == TRPAREN) {
+    if (cur->id == TRPAREN) {
+      consumeToken();
+      break;
+    }
+    consumeToken();
+    pVarNames(true);
+    while (cur->id != TSEMI && cur->id != TRPAREN) consumeToken();
+  }
+
+  return NORMAL;
+}
+static int pSubProgram()
+{
+  procname = cur->str;
+  consumeToken();
+  if (cur->id == TLPAREN) {
+    pFormalParameters();
+  }
+  consumeToken();
+  if (cur->id == TVAR) pVarDeclaration();
+  println("%s", getSymbol(procname).label);
+
+  if (!PARAMETER_is_empty(&parameter_stack)) {
+    // GR2に戻り番地、GR1に関数の引数を
+    genCode("POP", "GR2");
+    genCode("POP", "GR1");
+
+    for (;;) {
+      char * label = PARAMETER_pop(&parameter_stack);
+      println("\tST\tGR1,%s", label);
+      if (PARAMETER_is_empty(&parameter_stack)) break;
+      genCode("POP", "GR1");
+    }
+    println("\tPUSH\t0,GR2");
+  }
+
+  pCompoundStatement();
+  if (cur->id != TSEMI) return error("Error at %d: Expected ';'", cur->line_no);
+  procname = NULL;
+  return NORMAL;
+}
 
 static int pBlock()
 {
   if (cur->id == TVAR) {
     consumeToken();
     pVarDeclaration();
+  } else if (cur->id == TPROCEDURE) {
+    consumeToken();
+    pSubProgram();
   }
 
   return NORMAL;
@@ -357,7 +610,8 @@ static int pProgramst()
     return error("Error at %d: Keyword 'program' is not found", cur->line_no);
   consumeToken();
 
-  println("%%%s\tSTART\tL%04d", cur->str, getLabelNum());
+  println("%%%%%s\tSTART\tL%04d", cur->str, getLabelNum());
+  consumeToken();
   consumeToken();
 
   pBlock();
@@ -369,6 +623,11 @@ void codegen(Token * tok, FILE * output)
 {
   output_file = output;
   cur = tok;
+  PARAMETER_init(&parameter_stack);
+
+  printf("%s", getCrossrefBuf()->buf);
+
+  symbols = parseSymbols(getCrossrefBuf());
   pProgramst();
   outlib();
 }

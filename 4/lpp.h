@@ -337,35 +337,22 @@ int removeFromHashMap(const HashMap *, const char *);
     return stack->data[--stack->size];                                                            \
   }                                                                                               \
                                                                                                   \
-  /* スタックのトップを参照（ポップしない） */                                 \
-  static ELEMENT_TYPE TYPENAME##_peek(TYPENAME * stack)                                           \
-  {                                                                                               \
-    if (stack->size == 0) {                                                                       \
-      fprintf(stderr, "Stack is empty\n");                                                        \
-      exit(EXIT_FAILURE);                                                                         \
-    }                                                                                             \
-    return stack->data[stack->size - 1];                                                          \
-  }                                                                                               \
-                                                                                                  \
   /* スタックが空かどうかを判定 */                                                   \
-  static int TYPENAME##_is_empty(TYPENAME * stack) { return stack->size == 0; }                   \
-                                                                                                  \
-  /* スタックのサイズを取得 */                                                         \
-  static size_t TYPENAME##_size(TYPENAME * stack) { return stack->size; }                         \
-                                                                                                  \
-  /* スタックの解放 */                                                                     \
-  static void TYPENAME##_destroy(TYPENAME * stack)                                                \
-  {                                                                                               \
-    free(stack->data);                                                                            \
-    stack->data = NULL;                                                                           \
-    stack->capacity = stack->size = 0;                                                            \
-  }
+  static int TYPENAME##_is_empty(TYPENAME * stack) { return stack->size == 0; }
+
+typedef struct SymbolBuffer SymbolBuffer;
+
+struct SymbolBuffer
+{
+  char * buf;
+  int line_count;
+};
 
 TYPE_KIND error(char *, ...);
 
 Token * tokenizeFile(char *);
 void parse(Token *);
-char * getCrossrefBuf();
+SymbolBuffer * getCrossrefBuf();
 
 void codegen(Token *, FILE *);
 #endif
