@@ -352,6 +352,10 @@ TYPE_KIND error(char *, ...);
 
 Token * tokenizeFile(char *);
 void parse(Token *);
+bool isMulOp();
+bool isRelOp();
+bool isAddOp();
+bool isStdType();
 SymbolBuffer * getCrossrefBuf();
 
 void codegen(Token *, FILE *);

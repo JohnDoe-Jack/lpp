@@ -455,7 +455,7 @@ static void consumeToken(Token * tok)
  * @return true 
  * @return false 
  */
-static bool isRelOp()
+bool isRelOp()
 {
   switch (cur->id) {
     case TEQUAL:
@@ -476,7 +476,7 @@ static bool isRelOp()
  * @return true 
  * @return false 
  */
-static bool isMulOp()
+bool isMulOp()
 {
   switch (cur->id) {
     case TSTAR:
@@ -494,7 +494,7 @@ static bool isMulOp()
  * @return true 
  * @return false 
  */
-static bool isAddOp()
+bool isAddOp()
 {
   switch (cur->id) {
     case TPLUS:
@@ -514,7 +514,7 @@ static bool isAddOp()
   * @return TCHAR
   * @return false
  */
-static bool isStdType()
+bool isStdType()
 {
   switch (cur->id) {
     case TINTEGER:
@@ -749,9 +749,9 @@ static TYPE_KIND parseFactor()
   TYPE_KIND factor_type, expression_type;
   switch (cur->id) {
     // 変数
-    case TNAME: {
+    case TNAME:
       if ((factor_type = parseVar()) == TPRERROR) return TPRERROR;
-    } break;
+      break;
     // 定数
     case TNUMBER:
       factor_type = type->ttype = TPINT;
@@ -812,12 +812,19 @@ static TYPE_KIND parseFactor()
  */
 static int parseAssignment()
 {
-  if (parseVar() == TPRERROR) return ERROR;
+  TYPE_KIND var_type, expression_type;
+  if ((var_type = parseVar()) == TPRERROR) return ERROR;
 
   if (cur->id != TASSIGN) return error("\nError at %d: Expected ':='", cur->line_no);
   consumeToken(cur);
 
-  if (parseExpression() == TPRERROR) return ERROR;
+  if ((expression_type = parseExpression()) == TPRERROR) return ERROR;
+
+  if (var_type != expression_type) {
+    return error(
+      "\nError at %d: Type mismatch. Expected %s but got %s", cur->line_no,
+      token_str[decodeTYPEKINDtoID(var_type)], token_str[decodeTYPEKINDtoID(expression_type)]);
+  }
   return NORMAL;
 }
 

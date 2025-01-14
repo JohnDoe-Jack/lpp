@@ -20,7 +20,6 @@ struct Symbol
   char * label;
   char * type;
   char * addr;
-  int arraysize;
 };
 
 Symbol * symbols;
@@ -414,22 +413,108 @@ static int pVar()
   } else {
     symbol = getSymbol(cur->str);
   }
-
+  consumeToken();
+  if (cur->id == TLSQPAREN) {
+    consumeToken();
+    // Expressionの結果はGR1に格納されている
+    if (pExpression() == ERROR) return ERROR;
+    // 配列の添字が0より大きいかをチェック(GR0には0が常に格納されている)
+    genCode("CPA", "GR1,GR0");
+    genCode("JMI", "EROV");
+    // 配列の添字が配列のサイズより小さいかをチェック
+    println("\tLAD\tGR2,%d", getArraySize(symbol.type) - 1);
+    genCode("CPA", "GR1,GR2");
+    genCode("JPL", "EROV");
+    // GR1の分offsetを考慮して配列にアクセスする
+    println("\tLAD\tGR1,%s,GR1", symbol.label);
+    if (cur->id != TRSQPAREN) return error("Error at %d: Expected ']'", cur->line_no);
+    consumeToken();
+  } else {
+    if (symbol.label == NULL) {
+      return error("Error at %d: Undefined variable %s", cur->line_no, cur->str);
+    }
+    println("\tLD\tGR1,%s", symbol.label);
+  }
+  // 配列の値をスタックにPUSH
+  genCode("PUSH", "0,GR1");
   return NORMAL;
 }
 
 static int pAssignment()
 {
+  // 変数のアドレスはスタックにPUSHされている
   if (pVar() == ERROR) return ERROR;
 
   if (cur->id != TASSIGN) return error("Error at %d: Expected ':='", cur->line_no);
   consumeToken();
+
+  // Expressionの結果はGR1に格納されている
   if (pExpression() == ERROR) return ERROR;
+
+  // 左辺部の変数のアドレスをスタックからPOP
+  genCode("POP", "GR2");
+  // GR2には変数のアドレスが格納されているので、そのアドレスにGR1の値を格納する
+  genCode("ST", "GR1,0,GR2");
 
   return NORMAL;
 }
+static int pFactor()
+{
+  switch (cur->id) {
+    case TNAME:
+      pVar();
+      break;
+    default:
+      return error("Error at %d: Expected factor", cur->line_no);
+  }
+  return NORMAL;
+}
+static int pTerm()
+{
+  int opr;
+  // 式の結果はGR1に格納されている
+  if (pFactor() == ERROR) return ERROR;
 
-static int pExpression() { return NORMAL; }
+  genCode("PUSH", "0,GR1");
+
+  while (isMulOp()) {
+    opr = cur->id;
+    consumeToken();
+    if (pFactor() == ERROR) return ERROR;
+    genCode("POP", "GR2");
+    if (opr == TSTAR) {
+      genCode("MULA", "GR1,GR2");
+    } else if (opr == TDIV) {
+      genCode("DIVA", "GR2,GR1");
+      genCode("LD", "GR1,GR2");
+    } else if (opr == TAND) {
+      genCode("AND", "GR1,GR2");
+    }
+  }
+  return NORMAL;
+}
+static int pSimpleExpression()
+{
+  if (cur->id == TMINUS) {
+    consumeToken();
+    // 次の項の値に-1を乗じる
+    pTerm();
+
+  } else {
+    pTerm();
+  }
+  return NORMAL;
+}
+
+static int pExpression()
+{
+  pSimpleExpression();
+  if (isRelOp()) {
+    consumeToken();
+    pSimpleExpression();
+  }
+  return NORMAL;
+}
 
 static int pCondition()
 {
@@ -593,13 +678,20 @@ static int pSubProgram()
 
 static int pBlock()
 {
-  if (cur->id == TVAR) {
-    consumeToken();
-    pVarDeclaration();
-  } else if (cur->id == TPROCEDURE) {
-    consumeToken();
-    pSubProgram();
+  for (;;) {
+    if (cur->id == TVAR) {
+      consumeToken();
+      pVarDeclaration();
+    } else if (cur->id == TPROCEDURE) {
+      consumeToken();
+      pSubProgram();
+    } else {
+      break;
+    }
   }
+
+  genCode("LAD", "GR0,0");
+  if (pCompoundStatement() == ERROR) return ERROR;
 
   return NORMAL;
 }
