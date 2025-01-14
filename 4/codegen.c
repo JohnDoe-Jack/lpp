@@ -406,7 +406,7 @@ static int pVarDeclaration()
 static int pVar()
 {
   Symbol symbol;
-  if (!procname) {
+  if (procname != NULL) {
     char key[256];
     snprintf(key, sizeof(key), "%s:%s", cur->str, procname);
     symbol = getSymbol(key);
@@ -461,9 +461,37 @@ static int pAssignment()
 static int pFactor()
 {
   switch (cur->id) {
+    // 変数
     case TNAME:
       pVar();
+      genCode("POP", "GR1");
       break;
+    // 定数
+    case TNUMBER:
+      println("\tLAD\tGR1,%d", cur->num);
+      break;
+    case TFALSE:
+      println("\tLAD\tGR1,0");
+      break;
+    case TTRUE:
+      println("\tLAD\tGR1,1");
+      break;
+    case TSTRING:
+      println("\tLAD\tGR1,%s", cur->str);
+      break;
+      // "(" Expression ")"
+    case TLPAREN:
+      consumeToken();
+      pExpression();
+      if (cur->id != TRPAREN) return error("Error at %d: Expected ')'", cur->line_no);
+      consumeToken();
+      break;
+    case TNOT:
+      consumeToken();
+      pFactor();
+      genCode("XOR", "GR1,GR1");
+      break;
+
     default:
       return error("Error at %d: Expected factor", cur->line_no);
   }
@@ -501,6 +529,7 @@ static int pSimpleExpression()
     pTerm();
 
   } else {
+    if (cur->id == TPLUS) consumeToken();
     pTerm();
   }
   return NORMAL;
@@ -509,9 +538,12 @@ static int pSimpleExpression()
 static int pExpression()
 {
   pSimpleExpression();
-  if (isRelOp()) {
+  genCode("PUSH", "0,GR1");
+  while (isRelOp()) {
+    int opr = cur->id;
     consumeToken();
     pSimpleExpression();
+    genCode("POP", "GR2");
   }
   return NORMAL;
 }

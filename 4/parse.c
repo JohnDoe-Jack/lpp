@@ -764,6 +764,7 @@ static TYPE_KIND parseFactor()
       break;
     case TSTRING:
       factor_type = type->ttype = TPCHAR;
+      if (cur->len != 1) return error("\nError at %d: Expected char", cur->line_no);
       consumeToken(cur);
       break;
     case TLPAREN:
