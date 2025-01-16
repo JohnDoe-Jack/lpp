@@ -540,10 +540,29 @@ static int pExpression()
   pSimpleExpression();
   genCode("PUSH", "0,GR1");
   while (isRelOp()) {
+    int label = getLabelNum();
     int opr = cur->id;
     consumeToken();
     pSimpleExpression();
     genCode("POP", "GR2");
+    genCode("CPA", "GR2,GR1");
+
+    switch (opr) {
+      case TEQUAL:
+        break;
+      case TNOTEQ:
+        break;
+      case TLE:
+        break;
+      case TLEEQ:
+        break;
+      case TGR:
+        break;
+      case TGREQ:
+        break;
+      default:
+        break;
+    }
   }
   return NORMAL;
 }
