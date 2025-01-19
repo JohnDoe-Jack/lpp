@@ -55,12 +55,12 @@ int main(int argc, char ** argv)
   }
 
   Token * tok = tokenizeFile(argv[1]);
-  parse(tok);
+  if (parse(tok) == ERROR) return ERROR;
   char * filename = (char *)malloc(sizeof(char) * MAXSTRSIZE);
   getOutputFileName(argv[1], filename);
 
   FILE * out = openFile(filename);
-  codegen(tok, out);
+  if (codegen(tok, out) == ERROR) return ERROR;
 
   return 0;
 }

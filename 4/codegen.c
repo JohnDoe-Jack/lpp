@@ -26,7 +26,7 @@ Symbol * symbols;
 
 static int pCompoundStatement();
 static int pStatement();
-static int pExpression();
+static TYPE_KIND pExpression();
 
 static Symbol getSymbol(char * key)
 {
@@ -35,10 +35,7 @@ static Symbol getSymbol(char * key)
       return symbols[i];
     }
   }
-  Symbol s;
-  s.key = NULL;
-  fflush(stdout);
-  return s;
+  return (Symbol){NULL, NULL, NULL};
 }
 
 static void println(char * fmt, ...)
@@ -286,26 +283,7 @@ static void outlib(void)
     "                SUBA    gr6, ZERO\n"
     "                CALL    READCHAR  ;  ch = READSCHAR();\n"
     "                LD      gr7, 0,gr1\n"
-    "                JUMP    RI2  ; }\n"
-    "RI3             ST      gr7, RPBBUF  ; ReadPushBack();\n"
-    "                ST      gr6, 0,gr1  ; *gr1 = v;\n"
-    "                CPA     gr5, gr0  ; if(flag == 0) {\n"
-    "                JNZ     RI5\n"
-    "                SUBA    gr5, gr6  ;  *gr1 = -v;\n"
-    "                ST      gr5, 0,gr1\n"
-    "; }\n"
-    "RI5             RPOP\n"
-    "                RET\n"
-    "; 入力を改行コードまで（改行コードも含む）読み飛ばす\n"
-    "READLINE        ST      gr0, IBUFSIZE\n"
-    "                ST      gr0, INP\n"
-    "                ST      gr0, RPBBUF\n"
-    "                RET\n"
-    "ONE             DC      1\n"
-    "SIX             DC      6\n"
-    "TEN             DC      10\n"
-    "SPACE           DC      #0020  ; ' '\n"
-    "MINUS           DC      #002D  ; '-'\n"
+    "                JUMPgenWriteC      #002D  ; '-'\n"
     "TAB             DC      #0009  ; '\\t'\n"
     "ZERO            DC      #0030  ; '0'\n"
     "NINE            DC      #0039  ; '9'\n"
@@ -328,6 +306,8 @@ static int getLabelNum()
 static void genLabel(int label) { println("L%03d", label); }
 
 static void genCode(char * opc, char * opr) { println("\t%s\t%s", opc, opr); }
+
+static void genCodeLabel(char * opc, int label) { println("\t%s\tL%04d", opc, label); }
 
 static bool isArray(Symbol key) { return key.type[0] == 'a'; }
 
@@ -390,6 +370,7 @@ static int pVarNames(bool isparam)
 
 static int pVarDeclaration()
 {
+  consumeToken();
   pVarNames(false);
   while (cur->id != TSEMI) consumeToken();
   consumeToken();
@@ -410,6 +391,10 @@ static int pVar()
     char key[256];
     snprintf(key, sizeof(key), "%s:%s", cur->str, procname);
     symbol = getSymbol(key);
+    if (symbol.label == NULL) symbol = getSymbol(cur->str);
+    if (symbol.label == NULL) {
+      return error("Error at %d: Undefined variable %s", cur->line_no, cur->str);
+    }
   } else {
     symbol = getSymbol(cur->str);
   }
@@ -435,15 +420,13 @@ static int pVar()
     }
     println("\tLD\tGR1,%s", symbol.label);
   }
-  // 配列の値をスタックにPUSH
-  genCode("PUSH", "0,GR1");
   return NORMAL;
 }
 
 static int pAssignment()
 {
-  // 変数のアドレスはスタックにPUSHされている
   if (pVar() == ERROR) return ERROR;
+  genCode("PUSH", "0,GR1");
 
   if (cur->id != TASSIGN) return error("Error at %d: Expected ':='", cur->line_no);
   consumeToken();
@@ -458,113 +441,255 @@ static int pAssignment()
 
   return NORMAL;
 }
-static int pFactor()
+
+static void genStoreBoolean()
 {
+  int labelTrue = getLabelNum();
+  int labelEnd = getLabelNum();
+  genCode("CPA", "GR1,GR0");
+  genCodeLabel("JZE", labelTrue);  // GR1に格納されている値が0ならばJUMPする
+  genCode("LAD", "GR1,1");
+  genCodeLabel("JUMP", labelEnd);
+  genLabel(labelTrue);
+  genCode("LAD", "GR1,0");
+  genLabel(labelEnd);
+}
+
+static TYPE_KIND pFactor()
+{
+  TYPE_KIND factor_type, expression_type;
   switch (cur->id) {
     // 変数
     case TNAME:
-      pVar();
-      genCode("POP", "GR1");
+      if ((factor_type = pVar()) == TPRERROR) return TPRERROR;
       break;
     // 定数
     case TNUMBER:
+      factor_type = TPINT;
       println("\tLAD\tGR1,%d", cur->num);
+      consumeToken();
       break;
     case TFALSE:
+      factor_type = TPBOOL;
       println("\tLAD\tGR1,0");
+      consumeToken();
       break;
     case TTRUE:
+      factor_type = TPBOOL;
       println("\tLAD\tGR1,1");
+      consumeToken();
       break;
     case TSTRING:
+      factor_type = TPCHAR;
       println("\tLAD\tGR1,%s", cur->str);
+      consumeToken();
       break;
       // "(" Expression ")"
     case TLPAREN:
       consumeToken();
-      pExpression();
+      if ((factor_type = pExpression()) == TPRERROR) return TPRERROR;
       if (cur->id != TRPAREN) return error("Error at %d: Expected ')'", cur->line_no);
       consumeToken();
       break;
     case TNOT:
       consumeToken();
-      pFactor();
+      if ((factor_type = pFactor()) == TPRERROR) return TPRERROR;
       genCode("XOR", "GR1,GR1");
+      break;
+      // 標準型 "(" Expression ")"
+    case TINTEGER:
+      factor_type = TPINT;
+      consumeToken();
+      if (cur->id == TLPAREN) return error("Error at %d: Expected '('", cur->line_no);
+      consumeToken();
+      if ((expression_type = pExpression()) == TPRERROR) return TPRERROR;
+
+      switch (expression_type) {
+        case TPINT:
+          break;
+        case TPBOOL:
+          genStoreBoolean();
+          break;
+        case TPCHAR:
+          break;
+        default:
+          return error("Error at %d: Expected integer", cur->line_no);
+      }
+
+      if (cur->id != TRPAREN) return error("Error at %d: Expected ')'", cur->line_no);
+      consumeToken();
+
+      break;
+    case TBOOLEAN:
+      factor_type = TPBOOL;
+      consumeToken();
+      if (cur->id != TLPAREN) return error("Error at %d: Expected '('", cur->line_no);
+
+      consumeToken();
+      if ((expression_type = pExpression()) == TPRERROR) return TPRERROR;
+
+      switch (expression_type) {
+        case TPINT:
+          genStoreBoolean();
+          break;
+        case TPBOOL:
+          break;
+        case TPCHAR:
+          genStoreBoolean();
+          break;
+        default:
+          return error("Error at %d: Expected boolean", cur->line_no);
+      }
+      if (cur->id != TRPAREN) return error("Error at %d: Expected ')'", cur->line_no);
+      consumeToken();
+      break;
+    case TCHAR:
+      factor_type = TPCHAR;
+      consumeToken();
+      if (cur->id != TLPAREN) return error("Error at %d: Expected '('", cur->line_no);
+      consumeToken();
+      if ((expression_type = pExpression()) == TPRERROR) return TPRERROR;
+
+      switch (expression_type) {
+        case TPINT:
+          genCode("LAD", "#007F");
+          genCode("AND", "GR1,GR2");
+          genCode("LAD", "GR2,0");
+          break;
+        case TPBOOL:
+          genStoreBoolean();
+          break;
+        case TPCHAR:
+          break;
+        default:
+          return error("Error at %d: Expected char", cur->line_no);
+      }
+
+      if (cur->id != TRPAREN) return error("Error at %d: Expected ')'", cur->line_no);
+      consumeToken();
+
       break;
 
     default:
       return error("Error at %d: Expected factor", cur->line_no);
   }
-  return NORMAL;
+  return factor_type;
 }
-static int pTerm()
+static TYPE_KIND pTerm()
 {
   int opr;
+  TYPE_KIND factor_type;
   // 式の結果はGR1に格納されている
-  if (pFactor() == ERROR) return ERROR;
-
-  genCode("PUSH", "0,GR1");
+  if ((factor_type = pFactor()) == TPRERROR) return TPRERROR;
 
   while (isMulOp()) {
+    genCode("PUSH", "0,GR1");
     opr = cur->id;
     consumeToken();
     if (pFactor() == ERROR) return ERROR;
     genCode("POP", "GR2");
     if (opr == TSTAR) {
       genCode("MULA", "GR1,GR2");
+      factor_type = TPINT;
     } else if (opr == TDIV) {
       genCode("DIVA", "GR2,GR1");
       genCode("LD", "GR1,GR2");
+      factor_type = TPINT;
     } else if (opr == TAND) {
       genCode("AND", "GR1,GR2");
+      factor_type = TPBOOL;
     }
   }
-  return NORMAL;
+  genCode("JOV", "EOVF");
+  return factor_type;
 }
-static int pSimpleExpression()
+static TYPE_KIND pSimpleExpression()
 {
+  TYPE_KIND term_type;
   if (cur->id == TMINUS) {
     consumeToken();
     // 次の項の値に-1を乗じる
-    pTerm();
-
+    // 式の結果はスタックに積まれている
+    if ((term_type = pTerm()) == TPRERROR) return TPRERROR;
+    genCode("LAD", "GR2,1");
+    genCode("XOR", "GR1,GR1");
+    genCode("ADDA", "GR1,GR2");
   } else {
     if (cur->id == TPLUS) consumeToken();
-    pTerm();
+    if ((term_type = pTerm()) == TPRERROR) return TPRERROR;
   }
-  return NORMAL;
-}
 
-static int pExpression()
-{
-  pSimpleExpression();
-  genCode("PUSH", "0,GR1");
-  while (isRelOp()) {
-    int label = getLabelNum();
+  while (isAddOp(cur->id)) {
+    genCode("PUSH", "0,GR1");
     int opr = cur->id;
     consumeToken();
+    if ((term_type = pTerm()) == TPRERROR) return TPRERROR;
+    genCode("POP", "GR2");
+    if (opr == TPLUS) {
+      term_type = TPINT;
+      genCode("ADDA", "GR1,GR2");
+    } else if (opr == TMINUS) {
+      term_type = TPINT;
+      genCode("SUBA", "GR2,GR1");
+      genCode("LD", "GR1,GR2");
+    } else if (opr == TOR) {
+      term_type = TPBOOL;
+      genCode("OR", "GR1,GR2");
+    }
+  }
+  return term_type;
+}
+
+static TYPE_KIND pExpression()
+{
+  TYPE_KIND expression_type;
+  int label1, label2;
+  // 計算結果はGR1に格納されている
+  if ((expression_type = pSimpleExpression()) == TPRERROR) return TPRERROR;
+
+  genCode("PUSH", "0,GR1");
+  while (isRelOp(cur->id)) {
+    expression_type = TPBOOL;
+    label1 = getLabelNum();
+    label2 = getLabelNum();
+    int opr = cur->id;
+    consumeToken();
+    // 計算結果はGR1に格納されている
     pSimpleExpression();
     genCode("POP", "GR2");
     genCode("CPA", "GR2,GR1");
 
     switch (opr) {
       case TEQUAL:
+        genCodeLabel("JZE", label1);
         break;
       case TNOTEQ:
+        genCodeLabel("JNZ", label1);
         break;
       case TLE:
+        genCodeLabel("JMI", label1);
         break;
       case TLEEQ:
+        genCodeLabel("JMI", label1);
+        genCodeLabel("JZE", label1);
         break;
       case TGR:
+        genCodeLabel("JPL", label1);
         break;
       case TGREQ:
+        genCodeLabel("JPL", label1);
+        genCodeLabel("JZE", label1);
         break;
       default:
         break;
     }
+    genCode("LAD", "GR1,0");
+    genCodeLabel("JUMP", label2);
+    println("L%04d", label1);
+    genCode("LAD", "GR1,1");
+    println("L%04d", label2);
   }
-  return NORMAL;
+  return expression_type;
 }
 
 static int pCondition()
@@ -593,13 +718,153 @@ static int pCondition()
   return NORMAL;
 }
 
-static int pIteration() { return NORMAL; }
+static int pIteration()
+{
+  consumeToken();
+  int label1 = getLabelNum();
+  int label2 = getLabelNum();
+  genLabel(label1);
+  pExpression();
+  genCode("CPA", "GR1,GR0");
+  genCodeLabel("JZE", label2);
+  if (cur->id != TDO) return error("Error at %d: Expected 'do'", cur->line_no);
+  consumeToken();
+  pStatement();
+  genCodeLabel("JUMP", label1);
+  return NORMAL;
+}
 
-static int pCall() { return NORMAL; }
+static int pCall()
+{
+  if (cur->id != TCALL) return error("Error at %d: Expected 'call'", cur->line_no);
+  consumeToken();
+  return NORMAL;
+}
 
-static int pInput() { return NORMAL; }
+static int canReadType(TYPE_KIND type)
+{
+  switch (type) {
+    case TPINT:
+    case TPCHAR:
+      return true;
+    default:
+      return false;
+  }
+}
 
-static int pOutputStatement() { return NORMAL; }
+static void genRead(TYPE_KIND type)
+{
+  switch (type) {
+    case TPINT:
+      genCode("CALL", "READINT");
+      break;
+    case TPCHAR:
+      genCode("CALL", "READCHAR");
+      break;
+    default:
+      error("Error at %d: Expected integer, boolean or char", cur->line_no);
+      break;
+  }
+}
+
+static int pInput()
+{
+  bool isReadln = cur->id == TREADLN;
+  TYPE_KIND var_type;
+  consumeToken();
+
+  if (cur->id != TLPAREN) {
+    if (isReadln) genCode("CALL", "READLINE");
+    return NORMAL;
+  }
+
+  consumeToken();
+  if ((var_type = pVar()) == TPRERROR) return ERROR;
+
+  if (!canReadType(var_type)) return error("Error at %d: Expected integer or char", cur->line_no);
+  genRead(var_type);
+  if (isReadln) genCode("CALL", "READLINE");
+
+  while (cur->id == TCOMMA) {
+    consumeToken();
+    if ((var_type = pVar()) == TPRERROR) return ERROR;
+    if (!canReadType(var_type)) return error("Error at %d: Expected integer or char", cur->line_no);
+    genRead(var_type);
+    if (isReadln) genCode("CALL", "READLINE");
+  }
+
+  if (cur->id != TRPAREN) return error("Error at %d: Expected ')'", cur->line_no);
+  consumeToken();
+
+  return NORMAL;
+}
+
+static void genWrite(TYPE_KIND type)
+{
+  switch (type) {
+    case TPINT:
+      genCode("CALL", "WRITEINT");
+      break;
+    case TPBOOL:
+      genCode("CALL", "WRITEBOOL");
+      break;
+    case TPCHAR:
+      genCode("CALL", "WRITECHAR");
+      break;
+    default:
+      error("Error at %d: Expected integer, boolean or char", cur->line_no);
+      break;
+  }
+}
+
+static int pOutputFormat()
+{
+  if (cur->id == TSTRING) {
+    println("\tLAD\tGR1,='%s'", cur->str);
+    genCode("LAD", "GR2,0");
+    genCode("CALL", "WRITESTR");
+    consumeToken();
+    return NORMAL;
+  }
+
+  TYPE_KIND type = pExpression();
+  int output_num = 0;
+  if (cur->id != TCOLON) {
+    genWrite(type);
+    return NORMAL;
+  }
+  consumeToken();
+  output_num = cur->num;
+  consumeToken();
+
+  println("\tLAD\tGR2,%d", output_num);
+  genWrite(type);
+  return NORMAL;
+}
+
+static int pOutputStatement()
+{
+  bool isWriteln = cur->id == TWRITELN;
+  consumeToken();
+  if (cur->id != TLPAREN) {
+    if (isWriteln) genCode("CALL", "WRITELINE");
+    return NORMAL;
+  }
+
+  consumeToken();
+  pOutputFormat();
+  while (cur->id == TCOMMA) {
+    consumeToken();
+    pOutputFormat();
+  }
+
+  if (isWriteln) genCode("CALL", "WRITELINE");
+
+  if (cur->id != TRPAREN) return error("Error at %d: Expected ')'", cur->line_no);
+  consumeToken();
+
+  return NORMAL;
+}
 
 static int pStatement()
 {
@@ -723,6 +988,7 @@ static int pSubProgram()
 
   pCompoundStatement();
   if (cur->id != TSEMI) return error("Error at %d: Expected ';'", cur->line_no);
+  consumeToken();
   procname = NULL;
   return NORMAL;
 }
@@ -731,7 +997,6 @@ static int pBlock()
 {
   for (;;) {
     if (cur->id == TVAR) {
-      consumeToken();
       pVarDeclaration();
     } else if (cur->id == TPROCEDURE) {
       consumeToken();
@@ -758,11 +1023,12 @@ static int pProgramst()
   consumeToken();
 
   pBlock();
+  consumeToken();
 
   return NORMAL;
 }
 
-void codegen(Token * tok, FILE * output)
+int codegen(Token * tok, FILE * output)
 {
   output_file = output;
   cur = tok;
@@ -771,6 +1037,8 @@ void codegen(Token * tok, FILE * output)
   printf("%s", getCrossrefBuf()->buf);
 
   symbols = parseSymbols(getCrossrefBuf());
-  pProgramst();
+  if (pProgramst() == ERROR) return ERROR;
   outlib();
+
+  return NORMAL;
 }

@@ -351,12 +351,12 @@ struct SymbolBuffer
 TYPE_KIND error(char *, ...);
 
 Token * tokenizeFile(char *);
-void parse(Token *);
+int parse(Token *);
 bool isMulOp();
-bool isRelOp();
-bool isAddOp();
+bool isRelOp(TokenID);
+bool isAddOp(TokenID);
 bool isStdType();
 SymbolBuffer * getCrossrefBuf();
 
-void codegen(Token *, FILE *);
+int codegen(Token *, FILE *);
 #endif

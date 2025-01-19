@@ -455,9 +455,9 @@ static void consumeToken(Token * tok)
  * @return true 
  * @return false 
  */
-bool isRelOp()
+bool isRelOp(TokenID id)
 {
-  switch (cur->id) {
+  switch (id) {
     case TEQUAL:
     case TNOTEQ:
     case TLE:
@@ -494,9 +494,9 @@ bool isMulOp()
  * @return true 
  * @return false 
  */
-bool isAddOp()
+bool isAddOp(TokenID id)
 {
-  switch (cur->id) {
+  switch (id) {
     case TPLUS:
     case TMINUS:
     case TOR:
@@ -704,7 +704,7 @@ static TYPE_KIND parseSimpleExpression()
     simple_expression_type = TPINT;
   }
 
-  while (isAddOp()) {
+  while (isAddOp(cur->id)) {
     TYPE_KIND addop = cur->id;
     if (cur->id == TOR)
       addop = TPBOOL;
@@ -731,7 +731,7 @@ static TYPE_KIND parseExpression()
 {
   TYPE_KIND expression_type;
   if ((expression_type = parseSimpleExpression()) == TPRERROR) return TPRERROR;
-  while (isRelOp()) {
+  while (isRelOp(cur->id)) {
     consumeToken(cur);
     if (parseSimpleExpression() == TPRERROR) return TPRERROR;
     expression_type = TPBOOL;
@@ -1303,7 +1303,7 @@ static int parseProgram()
  * 
  * @param tok トークンの連結リストの先頭を示すポインタ
  */
-void parse(Token * tok)
+int parse(Token * tok)
 {
   cur = tok;
   globalid = newHashMap(HASHSIZE);
@@ -1312,10 +1312,11 @@ void parse(Token * tok)
   VARNAME_init(&varname_stack);
   if (parseProgram() == ERROR) {
     error("Parser aborted with error.");
-    return;
+    return ERROR;
   }
   printCrossreferenceTable(globalid);
   symbol_buf->buf = strdup(crossref_buf);
+  return NORMAL;
 }
 
 SymbolBuffer * getCrossrefBuf() { return symbol_buf; }
