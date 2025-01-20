@@ -352,7 +352,7 @@ TYPE_KIND error(char *, ...);
 
 Token * tokenizeFile(char *);
 int parse(Token *);
-bool isMulOp();
+bool isMulOp(TokenID);
 bool isRelOp(TokenID);
 bool isAddOp(TokenID);
 bool isStdType();

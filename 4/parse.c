@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "lpp.h"
 #define HASHSIZE 1000
 /**
@@ -476,9 +478,9 @@ bool isRelOp(TokenID id)
  * @return true 
  * @return false 
  */
-bool isMulOp()
+bool isMulOp(TokenID id)
 {
-  switch (cur->id) {
+  switch (id) {
     case TSTAR:
     case TDIV:
     case TAND:
@@ -663,7 +665,7 @@ static TYPE_KIND parseTerm()
   TYPE_KIND term_type;
   if ((term_type = parseFactor()) == TPRERROR) return ERROR;
 
-  while (isMulOp()) {
+  while (isMulOp(cur->id)) {
     TokenID mulop = cur->id;
     consumeToken(cur);
     TYPE_KIND factor_type;
@@ -821,7 +823,11 @@ static int parseAssignment()
 
   if ((expression_type = parseExpression()) == TPRERROR) return ERROR;
 
-  if (var_type != expression_type) {
+  if (
+    strcmp(
+      token_str[decodeTYPEKINDtoID(var_type)], token_str[decodeTYPEKINDtoID(expression_type)]) !=
+    0) {
+    printf("var_type: %d, expression_type: %d\n", var_type, expression_type);
     return error(
       "\nError at %d: Type mismatch. Expected %s but got %s", cur->line_no,
       token_str[decodeTYPEKINDtoID(var_type)], token_str[decodeTYPEKINDtoID(expression_type)]);
@@ -1315,7 +1321,7 @@ int parse(Token * tok)
     return ERROR;
   }
   printCrossreferenceTable(globalid);
-  symbol_buf->buf = strdup(crossref_buf);
+  if (crossref_buf != NULL) symbol_buf->buf = strdup(crossref_buf);
   return NORMAL;
 }
 

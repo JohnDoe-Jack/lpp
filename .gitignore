@@ -10,6 +10,7 @@ test_results
 *.gch
 pp
 tc
+mpplc
 info
 *.info
 *.csl

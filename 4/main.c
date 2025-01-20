@@ -23,18 +23,24 @@ static FILE * openFile(const char * path)
 
 static void getFileName(char * path, char * name)
 {
-  int i = 0;
-  int j = 0;
-  while (path[i] != '\0') {
-    if (path[i] == '/') {
-      j = 0;
-    } else {
-      name[j] = path[i];
-      j++;
-    }
-    i++;
+  // パスのうち最後の'/'以降の部分を取り出す
+  const char * lastSlash = strrchr(path, '/');
+  if (!lastSlash) {
+    // スラッシュが見つからなければ先頭から
+    lastSlash = path;
+  } else {
+    // スラッシュをスキップ
+    lastSlash++;
   }
-  name[j - 4] = '\0';
+
+  // ファイル名をコピー
+  strcpy(name, lastSlash);
+
+  // 最後に拡張子を取り除く（最低4文字ある場合のみ）
+  int len = strlen(name);
+  if (len > 4) {
+    name[len - 4] = '\0';
+  }
 }
 
 static void getOutputFileName(char * path, char * name)
