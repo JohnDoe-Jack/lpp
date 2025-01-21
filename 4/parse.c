@@ -314,6 +314,7 @@ static void printCrossreferenceTable(HashMap * idroot)
     Entry * entry = arr[i];
     printName(entry);
     printType(entry->value->itp);
+    appendCrossRef("|%d", entry->value->ispara);
     appendCrossRef("|%d|", entry->value->defline);
     while (entry->value->irefp != NULL) {
       appendCrossRef("%d", entry->value->irefp->reflinenum);
