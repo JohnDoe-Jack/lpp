@@ -99,14 +99,14 @@ static void printToken(const Token * tok)
   if (print_buf == NULL) {
     print_buf = malloc(sizeof(char) * 256);
     print_buf[0] = '\0';
-    strcat(print_buf, ";");
+    strcat(print_buf, ";\t");
   }
   if (!at_bol && !tok->at_bol && tok->has_space) strcat(print_buf, " ");
 
   if ((at_bol || tok->at_bol) && tok->id != TPROGRAM) {
     println("%s", print_buf);
     print_buf[0] = '\0';
-    strcat(print_buf, ";");
+    strcat(print_buf, ";\t");
   }
 
   if (tok->kind == TK_KEYWORD || tok->kind == TK_PUNCT) {
@@ -505,7 +505,10 @@ static int pVar(bool doAddressLoad)
   if (cur->id == TLSQPAREN) {
     consumeToken();
     // Expressionの結果はGR1に格納されている
+    bool isAddress2 = isAddress;
+    isAddress = false;
     if (pExpression(doAddressLoad) == NULL) return ERROR;
+    isAddress = isAddress2;
     // 配列の添字が0より大きいかをチェック(GR0には0が常に格納されている)
     genCode("CPA", "GR1,GR0");
     genCode("JMI", "EROV");
@@ -548,7 +551,7 @@ static int pAssignment()
   consumeToken();
 
   // Expressionの結果はGR1に格納されている
-  if (pExpression(true) == NULL) return ERROR;
+  if (pExpression(false) == NULL) return ERROR;
 
   // 左辺部の変数のアドレスをスタックからPOP
   genCode("POP", "GR2");
@@ -620,7 +623,8 @@ static Obj pFactor(bool doAddressLoad)
     case TNOT:
       consumeToken();
       if ((factor = pFactor(doAddressLoad)) == NULL) return NULL;
-      genCode("XOR", "GR1,GR1");
+      genCode("LAD", "GR2,1");
+      genCode("XOR", "GR1,GR2");
       break;
       // 標準型 "(" Expression ")"
     case TINTEGER:
@@ -808,10 +812,9 @@ static Obj pExpression(bool doAddressLoad)
   Obj expression;
   int label1, label2;
   // 計算結果はGR1に格納されている
-  if ((expression = pSimpleExpression(doAddressLoad)) == NULL) return NULL;
+  if ((expression = pSimpleExpression(true)) == NULL) return NULL;
   while (isRelOp(cur->id)) {
     if (para || isLAD) genCode("LD", "GR1,0,GR1");
-    // para = false;
     genCode("PUSH", "0,GR1");
     expression->type = TPBOOL;
     expression->isLVal = false;
@@ -862,7 +865,7 @@ static int pCondition()
   int label1, label2;
   if (cur->id != TIF) return error("Error at %d: Expected 'if'", cur->line_no);
   consumeToken();
-  if (pExpression(true) == NULL) return ERROR;
+  if (pExpression(false) == NULL) return ERROR;
 
   label1 = getLabelNum();
   genCode("CPA", "GR1,GR0");
@@ -891,7 +894,7 @@ static int pIteration()
   int label1 = getLabelNum();
   int label2 = getLabelNum();
   genLabel(label1);
-  pExpression(true);
+  pExpression(false);
   genCode("CPA", "GR1,GR0");
   genCodeLabel("JZE", label2);
   if (cur->id != TDO) return error("Error at %d: Expected 'do'", cur->line_no);
@@ -917,13 +920,13 @@ static int pExpressions()
 {
   Obj expression;
   isAddress = true;
-  if ((expression = pExpression(true)) == NULL) return ERROR;
+  if ((expression = pExpression(false)) == NULL) return ERROR;
 
   genProcedureCall(expression);
 
   while (cur->id == TCOMMA) {
     consumeToken();
-    if ((expression = pExpression(true)) == NULL) return ERROR;
+    if ((expression = pExpression(false)) == NULL) return ERROR;
     genProcedureCall(expression);
   }
   isAddress = false;
