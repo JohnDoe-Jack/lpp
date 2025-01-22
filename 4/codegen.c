@@ -470,14 +470,28 @@ static int pVarDeclaration()
 static int decodeType(char * type)
 {
   if (strncmp(type, "array", 5) == 0) {
-    char * pOf = strstr(type, "of");
-    if (!pOf) return -1;
-    pOf += 2;
-    while (isspace(*pOf)) pOf++;
+    // array[数字]oftype の形式をパース
+    char * p = strchr(type, '[');
+    if (!p) return -1;
 
-    if (strncmp(pOf, "integer", 7) == 0) return TPINT;
-    if (strncmp(pOf, "boolean", 7) == 0) return TPBOOL;
-    if (strncmp(pOf, "char", 4) == 0) return TPCHAR;
+    // [...]の部分をスキップ
+    while (*p != ']') {
+      if (*p == '\0') return -1;
+      p++;
+    }
+    p++;  // ]の次へ
+
+    // "of"を探す
+    if (strncmp(p, "of", 2) != 0) return -1;
+    p += 2;
+
+    // 空白をスキップ
+    while (isspace(*p)) p++;
+
+    // 要素の型を判定
+    if (strncmp(p, "integer", 7) == 0) return TPINT;
+    if (strncmp(p, "boolean", 7) == 0) return TPBOOL;
+    if (strncmp(p, "char", 4) == 0) return TPCHAR;
     return -1;
   }
   if (strcmp(type, "integer") == 0) return TPINT;
@@ -517,7 +531,13 @@ static int pVar(bool doAddressLoad)
     genCode("CPA", "GR1,GR2");
     genCode("JPL", "EROV");
     // GR1の分offsetを考慮して配列にアクセスする
-    println("\tLAD\tGR1,%s,GR1", symbol.label);
+
+    if (isAddress && !symbol.ispara) {
+      println("\tLAD\tGR1,%s,GR1", symbol.label);
+    } else {
+      println("\tLD\tGR1,%s,GR1", symbol.label);
+    }
+
     if (cur->id != TRSQPAREN) {
       return error("Error at %d: Expected ']'", cur->line_no);
     }
