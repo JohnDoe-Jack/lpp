@@ -356,6 +356,7 @@ bool isMulOp(TokenID);
 bool isRelOp(TokenID);
 bool isAddOp(TokenID);
 bool isStdType();
+void outlib(FILE *);
 SymbolBuffer * getCrossrefBuf();
 
 int codegen(Token *, FILE *);
