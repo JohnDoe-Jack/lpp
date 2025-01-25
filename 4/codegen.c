@@ -8,11 +8,12 @@ static Token * cur;
 //! 定義されたプロシージャの名前を格納する変数
 static char * procname = NULL;
 
-static bool isAddress = false;
+//!
+static bool needs_address_load = false;
 static bool at_bol = false;
 
-static bool para = false;
-static bool isLAD = false;
+static bool is_parameter = false;
+static bool loaded_address = false;
 
 static char * call_var_name = NULL;
 
@@ -268,10 +269,10 @@ static int pVar()
   if (cur->id == TLSQPAREN) {
     consumeToken();
     // Expressionの結果はGR1に格納されている
-    bool isAddress2 = isAddress;
-    isAddress = false;
+    bool isAddress2 = needs_address_load;
+    needs_address_load = false;
     if (pExpression() == NULL) return ERROR;
-    isAddress = isAddress2;
+    needs_address_load = isAddress2;
     // 配列の添字が0より大きいかをチェック(GR0には0が常に格納されている)
     genCode("CPA", "GR1,GR0");
     genCode("JMI", "EROV");
@@ -281,7 +282,7 @@ static int pVar()
     genCode("JPL", "EROV");
     // GR1の分offsetを考慮して配列にアクセスする
 
-    if (isAddress && !symbol.ispara) {
+    if (needs_address_load && !symbol.ispara) {
       println("\tLAD\tGR1,%s,GR1", symbol.label);
     } else {
       println("\tLD\tGR1,%s,GR1", symbol.label);
@@ -295,17 +296,17 @@ static int pVar()
     if (symbol.label == NULL) {
       return error("Error at %d: Undefined variable %s", cur->line_no, cur->str);
     }
-    if (isAddress && !symbol.ispara) {
+    if (needs_address_load && !symbol.ispara) {
       println("\tLAD\tGR1,%s", symbol.label);
-      isLAD = true;
+      loaded_address = true;
     } else {
       println("\tLD\tGR1,%s", symbol.label);
-      isLAD = false;
+      loaded_address = false;
     }
   }
   int type = decodeType(symbol.type);
   if (type == -1) return error("Error at %d: Undefined type %s", cur->line_no, symbol.type);
-  para = symbol.ispara;
+  is_parameter = symbol.ispara;
   call_var_name = symbol.label;
   return type;
 }
@@ -313,9 +314,9 @@ static int pVar()
 static int pAssignment()
 {
   Obj lhs;
-  isAddress = true;
+  needs_address_load = true;
   if (pVar() == ERROR) return ERROR;
-  isAddress = false;
+  needs_address_load = false;
   genCode("PUSH", "0,GR1");
 
   if (cur->id != TASSIGN) return error("Error at %d: Expected ':='", cur->line_no);
@@ -356,7 +357,7 @@ static Obj pFactor()
     case TNAME:
       factor->isLVal = true;
       if ((factor->type = pVar()) == TPRERROR) return NULL;
-      if (para || isLAD) genCode("LD", "GR1,0,GR1");
+      if (is_parameter || loaded_address) genCode("LD", "GR1,0,GR1");
       break;
     // 定数
     case TNUMBER:
@@ -677,7 +678,7 @@ static int pIteration()
 static void genProcedureCall(Obj obj)
 {
   if (obj->isLVal) {
-    if (!para)
+    if (!is_parameter)
       println("\tLAD\tGR1,%s", call_var_name);
     else {
       println("\tLD\tGR1,%s", call_var_name);
@@ -693,7 +694,7 @@ static void genProcedureCall(Obj obj)
 static int pExpressions()
 {
   Obj expression;
-  isAddress = true;
+  needs_address_load = true;
   if ((expression = pExpression()) == NULL) return ERROR;
   genProcedureCall(expression);
 
@@ -702,7 +703,7 @@ static int pExpressions()
     if ((expression = pExpression()) == NULL) return ERROR;
     genProcedureCall(expression);
   }
-  isAddress = false;
+  needs_address_load = false;
   return NORMAL;
 }
 
@@ -764,17 +765,17 @@ static int pInput()
   }
 
   consumeToken();
-  isAddress = true;
+  needs_address_load = true;
   if ((var_type = pVar()) == TPRERROR) return ERROR;
-  isAddress = false;
+  needs_address_load = false;
   if (!canReadType(var_type)) return error("Error at %d: Expected integer or char", cur->line_no);
   genRead(var_type);
 
   while (cur->id == TCOMMA) {
     consumeToken();
-    isAddress = true;
+    needs_address_load = true;
     if ((var_type = pVar()) == TPRERROR) return ERROR;
-    isAddress = false;
+    needs_address_load = false;
     if (!canReadType(var_type)) return error("Error at %d: Expected integer or char", cur->line_no);
     genRead(var_type);
   }
