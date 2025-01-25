@@ -65,7 +65,8 @@ static Symbol getSymbol(char * key)
       return symbols[i];
     }
   }
-  return (Symbol){NULL, NULL, NULL};
+  Symbol symbol = {NULL, NULL, NULL, NULL, false};
+  return symbol;
 }
 
 static void println(char * fmt, ...)
@@ -225,25 +226,20 @@ static int pVarDeclaration()
 static int decodeType(char * type)
 {
   if (strncmp(type, "array", 5) == 0) {
-    // array[数字]oftype の形式をパース
     char * p = strchr(type, '[');
     if (!p) return -1;
 
-    // [...]の部分をスキップ
     while (*p != ']') {
       if (*p == '\0') return -1;
       p++;
     }
-    p++;  // ]の次へ
+    p++;
 
-    // "of"を探す
     if (strncmp(p, "of", 2) != 0) return -1;
     p += 2;
 
-    // 空白をスキップ
     while (isspace(*p)) p++;
 
-    // 要素の型を判定
     if (strncmp(p, "integer", 7) == 0) return TPINT;
     if (strncmp(p, "boolean", 7) == 0) return TPBOOL;
     if (strncmp(p, "char", 4) == 0) return TPCHAR;
@@ -304,7 +300,6 @@ static int pVar()
       isLAD = true;
     } else {
       println("\tLD\tGR1,%s", symbol.label);
-      // if (symbol.ispara) isLAD = true;
       isLAD = false;
     }
   }
@@ -328,7 +323,6 @@ static int pAssignment()
 
   // Expressionの結果はGR1に格納されている
   if ((lhs = pExpression()) == NULL) return ERROR;
-  // if (para && !lhs->isNumber) genCode("LD", "GR1,0,GR1");
 
   // 左辺部の変数のアドレスをスタックからPOP
   genCode("POP", "GR2");
@@ -361,7 +355,7 @@ static Obj pFactor()
     // 変数
     case TNAME:
       factor->isLVal = true;
-      if ((factor->type = pVar()) == ERROR) return NULL;
+      if ((factor->type = pVar()) == TPRERROR) return NULL;
       if (para || isLAD) genCode("LD", "GR1,0,GR1");
       break;
     // 定数
@@ -520,7 +514,6 @@ static Obj pTerm()
   if ((factor = pFactor()) == NULL) return NULL;
 
   while (isMulOp(cur->id)) {
-    // if ((para || isLAD) && !factor->isNumber && cur->id != TDIV) genCode("LD", "GR1,0,GR1");
     factor->isLVal = false;
 
     genCode("PUSH", "0,GR1");
@@ -533,7 +526,6 @@ static Obj pTerm()
       genCode("JOV", "EOVF");
       factor->type = TPINT;
     } else if (opr == TDIV) {
-      // if ((para || isLAD) && !factor->isNumber) genCode("LD", "GR1,0,GR1");
       genCode("DIVA", "GR2,GR1");
       genCode("JOV", "EOVF");
       genCode("LD", "GR1,GR2");
@@ -553,9 +545,6 @@ static Obj pSimpleExpression()
     // 次の項の値に-1を乗じる
     // 式の結果はスタックに積まれている
     if ((term = pTerm()) == NULL) return NULL;
-    if (para) {
-      // genCode("LD", "GR1,0,GR1");
-    }
     genCode("LAD", "GR2,-1");
     genCode("MULA", "GR1,GR2");
     genCode("JOV", "EOVF");
@@ -565,7 +554,6 @@ static Obj pSimpleExpression()
   }
 
   while (isAddOp(cur->id)) {
-    // if (para || isLAD) genCode("LD", "GR1,0,GR1");
     genCode("PUSH", "0,GR1");
     int opr = cur->id;
     term->isLVal = false;
@@ -596,7 +584,6 @@ static Obj pExpression()
   // 計算結果はGR1に格納されている
   if ((expression = pSimpleExpression()) == NULL) return NULL;
   while (isRelOp(cur->id)) {
-    // if (para || isLAD) genCode("LD", "GR1,0,GR1");
     genCode("PUSH", "0,GR1");
     expression->type = TPBOOL;
     expression->isLVal = false;
@@ -750,7 +737,7 @@ static int canReadType(TYPE_KIND type)
   }
 }
 
-static void genRead(TYPE_KIND type, bool isReadln)
+static void genRead(TYPE_KIND type)
 {
   switch (type) {
     case TPINT:
@@ -781,7 +768,7 @@ static int pInput()
   if ((var_type = pVar()) == TPRERROR) return ERROR;
   isAddress = false;
   if (!canReadType(var_type)) return error("Error at %d: Expected integer or char", cur->line_no);
-  genRead(var_type, isReadln);
+  genRead(var_type);
 
   while (cur->id == TCOMMA) {
     consumeToken();
@@ -789,7 +776,7 @@ static int pInput()
     if ((var_type = pVar()) == TPRERROR) return ERROR;
     isAddress = false;
     if (!canReadType(var_type)) return error("Error at %d: Expected integer or char", cur->line_no);
-    genRead(var_type, isReadln);
+    genRead(var_type);
   }
 
   if (cur->id != TRPAREN) return error("Error at %d: Expected ')'", cur->line_no);
@@ -828,7 +815,6 @@ static int pOutputFormat()
   }
 
   Obj expression = pExpression();
-  // if ((para || isLAD) && !expression->isNumber) genCode("LD", "GR1,0,GR1");
 
   int output_num = 0;
   if (cur->id != TCOLON) {
@@ -958,9 +944,6 @@ static int pFormalParameters()
       consumeToken();
       break;
     }
-    consumeToken();
-    pVarNames(true);
-    while (cur->id != TSEMI && cur->id != TRPAREN) consumeToken();
   }
 
   return NORMAL;
@@ -1042,8 +1025,6 @@ int codegen(Token * tok, FILE * output)
   output_file = output;
   cur = tok;
   PARAMETER_init(&parameter_stack);
-
-  // printf("%s", getCrossrefBuf()->buf);
 
   symbols = parseSymbols(getCrossrefBuf());
   if (pProgramst() == ERROR) return ERROR;

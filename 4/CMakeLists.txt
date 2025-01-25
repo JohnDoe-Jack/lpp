@@ -8,5 +8,5 @@ if(NOT CMAKE_C_STANDARD)
   set(CMAKE_C_STANDARD 99)
 endif()
 
-# add_compile_options(-Wall -Wextra -Werror)
+add_compile_options(-Wall -Wextra -Werror)
 add_executable(mpplc main.c lpp.h parse.c scan.c util.c hashmap.c codegen.c)
